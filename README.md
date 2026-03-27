@@ -12,8 +12,8 @@
 **Requisitos:** Python 3.10+, terminal com suporte a Unicode (recomendado: fonte SimSun-ExtG ≤ 20pt para melhor visualização das ASCII arts).
 
 ```bash
-git clone https://github.com/seu-usuario/o-limiar.git
-cd o-limiar
+git clone https://github.com/Loboguar4/O-Limiar
+cd O-Limiar
 python main.py
 ```
 
