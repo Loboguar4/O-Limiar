@@ -8324,10 +8324,10 @@ DICAS_MORTE = [
 ]
 
 # =====================================================================
-# SISTEMA DE SAVE/LOAD — JSON em ~/.masmorras_liminares/saves/
+# SISTEMA DE SAVE/LOAD — JSON em ~/.o_limiar/saves/
 # =====================================================================
 
-SAVE_DIR = os.path.join(os.path.expanduser("~"), ".masmorras_liminares", "saves")
+SAVE_DIR = os.path.join(os.path.expanduser("~"), ".o_limiar", "saves")
 
 
 def _garantir_dir_save():
