@@ -3,7 +3,7 @@
 
 > *"Ninguém jamais retornou."*
 
-**O Limiar** é um dungeon crawler RPG rodando inteiramente no terminal, escrito em Python. Inspirado em Rogue, Fear & Hunger e Dark Souls, o jogo une geração procedural de labirintos, combate tático por turnos e atmosfera Dark Fantasy / Cosmic Horror numa aventura solitária e punitiva pelas profundezas de uma masmorra que parece ter vontade própria.
+**O Limiar** é um dungeon crawler RPG rodando inteiramente no terminal, escrito em Python. Inspirado em Rogue (1980), o jogo une geração procedural de labirintos, combate tático por turnos e atmosfera Dark Fantasy / Cosmic Horror numa aventura solitária e punitiva pelas profundezas de uma masmorra que parece ter vontade própria.
 
 ---
 
@@ -27,7 +27,7 @@ O jogador acorda diante de um portão de pedra negra. Um ser sem nome — o Port
 
 A única saída é descer. Encontrar o Olho. E destruí-lo.
 
-Não há sistema de level up. A dificuldade escala com a profundidade. Cada run dura em torno de 25 a 40 minutos — curta, imprevisível, brutal.
+Não há sistema de level up. A dificuldade escala com a profundidade. Cada run dura em torno de 35 a 60 minutos — curta, imprevisível, brutal.
 
 ---
 

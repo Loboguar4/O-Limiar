@@ -5874,7 +5874,7 @@ class DungeonGame:
             extras = ['Elmo da Fúria +2', 'Espada Curta +1', 'Poção de Sangue', 'explosivo arremessável']
 
         elif sc == 'Cavaleiro':
-            itens_base = ['poção de cura', 'Espada Longa +1', 'Armadura do Veterano', 'Runa do Limiar', 'Diário Perdido']
+            itens_base = ['poção de cura', 'Espada Longa +1', 'Armadura do Veterano', 'Runa do Limiar']
             porteiro_curto([
                 "Cavaleiro. Disciplina, código e aço refinado.",
                 "Podeis ler tomos — o conhecimento também é armadura.",
@@ -8677,8 +8677,8 @@ def menu_principal():
         print()
         print("        ╔══════════════════════════════════════╗")
         print("        ║                                      ║")
-        print("        ║   ⚔  [1] INICIAR NOVA JORNADA        ║")
-        print(f"        ║  📜  [2] CONTINUAR JORNADA ({len(saves)})       ║")
+        print("        ║   ⚔  [1] INICIAR NOVA DESCIDA        ║")
+        print(f"        ║  📜  [2] CONTINUAR DESCIDA ({len(saves)})       ║")
         print("        ║   ✠  [3] ABANDONAR LIMIAR            ║")
         print("        ║                                      ║")
         print("        ╚══════════════════════════════════════╝")
