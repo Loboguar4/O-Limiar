@@ -2,7 +2,7 @@
 # O LIMIAR — ver. 2.1.1
 # Anteriormente: Masmorras Liminares
 
-    "Atmosférico. Primitivo. Ancestral. No Limiar do Mundo."
+    "Atmosférico. Punitivo. Ancestral. No Limiar do Mundo."
     "Ninguém jamais retornou."
 
 # Copyright (C) 2026 Bandeirinha
