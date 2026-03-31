@@ -271,7 +271,7 @@ PESOS_ITENS = {
     # Armaduras / defensivos pesados
     'Armadura de Mithril':     7.5,
     'Escudo dos Condenados':   4.0,
-    'Elmo da Fúria':           2.0,
+    'Elmo Espinhoso':           2.0,
     # Acessórios e vestes
     'Botas do Silêncio':       1.0,
     'Manto das Sombras':       0.8,
@@ -361,7 +361,7 @@ DESCRICOES_ITENS = {
     'Adaga Envenenada':         "Lâmina banhada em toxina. 70% de envenenar.",
     'Armadura de Mithril':      "Proteção leve e resistente. Alta CA.",
     'Escudo dos Condenados':    "Pesado e amaldiçoado. CA alta + contra-ataque passivo.",
-    'Elmo da Fúria':            "Aumenta ataque mas reduz CA. Bônus para o próximo golpe.",
+    'Elmo Espinhoso':           "Capacete cravado de espinhos afiados. Cabeçadas e investidas causam dano extra. -1 CA.",
     'Botas do Silêncio':        "Inimigos detectam a ≤2 tiles. 60% de passar despercebido. +15% fuga.",
     'Manto das Sombras':        "Tecido das sombras. 70% fuga e duração de invisib. +2.",
     'Anel da Vitalidade':       "Aumenta HP máximo enquanto equipado.",
@@ -545,6 +545,17 @@ class Personagem:
 
         total_bonus = self.ataque_bonus + self.bonus_temporario + (self.arma['bonus'] if self.arma else 0) + bonus_furia + bonus_furia_sub
         total = rolagem + total_bonus
+
+        # Elmo Espinhoso — anunciar cabeçada antes da rolagem
+        if 'elmo_espinhoso' in self.efeitos_ativos:
+            msgs_elmo = [
+                f"🪖 Você investe com o Elmo Espinhoso! Os espinhos miram {alvo.nome}!",
+                f"🪖 Cabeçada brutal! Os espinhos do elmo apontam para {alvo.nome}!",
+                f"🪖 Investida agressiva — você usa a cabeça literalmente!",
+            ]
+            print(random.choice(msgs_elmo))
+            time.sleep(0.5)
+
         print(f"🎲 Rolagem de ataque: {rolagem} + {total_bonus} vs CA {alvo.ac}")
 
         # Espada Fantasma: ignora CA do alvo — testa contra CA 0 (sempre acerta se rolar > 0)
@@ -1438,12 +1449,17 @@ class Personagem:
             self.gerenciar_equipamento(item)
             print(f"🔥 Machado Flamejante equipado! +{bonus+2} ataque, +{bonus+2} dano + dano de fogo.")
 
-        elif item.startswith('Elmo da Fúria'):
+        elif item.startswith('Elmo Espinhoso'):
             bonus = int(item.split('+')[1])
             self.bonus_temporario = bonus
             self.ac -= 1
+            self.efeitos_ativos['elmo_espinhoso'] = 1   # dura 1 ataque, expira com mensagem
             self.gerenciar_equipamento(item)
-            print(f"🪖 Elmo da Fúria: +{bonus} dano próximo ataque, -1 CA!")
+            print("🪖 Você veste o Elmo Espinhoso com um clique metálico...")
+            time.sleep(0.8)
+            print(f"   Os espinhos arranham sua têmpora. Você sente o instinto de investir.")
+            time.sleep(0.5)
+            print(f"   ⚔️  +{bonus} no próximo ataque com cabeçada ou investida  |  -1 CA")
 
         elif item == 'Botas do Silêncio':
             self.gerenciar_equipamento(item)
@@ -2189,6 +2205,9 @@ class Personagem:
             elif efeito == 'forca':
                 print("💪 O efeito da Poção de Força acabou!")
                 self.bonus_temporario = 0
+            elif efeito == 'elmo_espinhoso':
+                print("🪖 Os espinhos do Elmo Espinhoso se partiram no impacto! Bônus consumido.")
+                self.bonus_temporario = 0
             elif efeito == 'protecao':
                 bonus = self.efeitos_ativos.pop('valor_protecao', None)
                 if bonus:
@@ -2244,7 +2263,7 @@ class Personagem:
                 ataque_bonus += bonus    # bônus escalável extra (já há +2 fixo no arma dict)
             elif any(palavra in item for palavra in [
                 'Espada Curta', 'Lâmina Sombria', 'Arco Élfico', 'Machado Anão Flamejante',
-                'Manoplas do Trovão', 'Elmo da Fúria', 'Cajado de Gelo',
+                'Manoplas do Trovão', 'Elmo Espinhoso', 'Cajado de Gelo',
                 'Orbe Mental de Vecna', 'Adaga Envenenada', 'Grimório das Almas',
                 'Lâmina Drenante', 'Machado do Sangramento', 'Espada Fantasma',
                 'Adaga Simples', 'Cajado de Osso',
@@ -3042,7 +3061,7 @@ class CavaleiroSemNome(InimigoEspecial):
             dano_lados=14,
             pos=pos, tipo='extremo_guerreiro')
         self.furia_ativa = False
-        self.arma_loot   = f'Elmo da Fúria +{3 + dificuldade // 6}'
+        self.arma_loot   = f'Elmo Espinhoso +{3 + dificuldade // 6}'
 
     def atacar(self, alvo):
         if getattr(alvo, 'invisivel', False):
@@ -4448,7 +4467,7 @@ class Mapa:
             f'Arco da Ruína +{1 + dificuldade // 2}',
             f'Armadura de Mithril +{1 + dificuldade // 2}',
             f'Machado Anão Flamejante +{1 + dificuldade // 2}',
-            f'Elmo da Fúria +{1 + dificuldade // 2}',
+            f'Elmo Espinhoso +{1 + dificuldade // 2}',
             'Botas do Silêncio',
             f'Cajado de Gelo +{1 + dificuldade // 2}',
             'Tomo de Sabedoria Antiga',
@@ -5993,12 +6012,12 @@ class DungeonGame:
                 "Tomos são papel. Ferro é real.",
             ], pausa=2)
             op_extra = [
-                "Elmo da Fúria +2 — fúria e poder às custas da defesa",
+                "Elmo Espinhoso +2 — cabeçadas brutais e bônus de ataque, -1 CA",
                 "Espada Curta +1 — lâmina de reserva",
                 "Poção de Sangue — HP imediato, com custo",
                 "Explosivo Arremessável — quando o machado não alcança",
             ]
-            extras = ['Elmo da Fúria +2', 'Espada Curta +1', 'Poção de Sangue', 'explosivo arremessável']
+            extras = ['Elmo Espinhoso +2', 'Espada Curta +1', 'Poção de Sangue', 'explosivo arremessável']
 
         elif sc == 'Cavaleiro':
             itens_base = ['poção de cura', 'Espada Longa +1', 'Armadura do Veterano', 'Runa do Limiar']
