@@ -1,14 +1,69 @@
 """
-# O LIMIAR — ver. 2.0.0
+# O LIMIAR — ver. 2.1.1
 # Anteriormente: Masmorras Liminares
 
     "Atmosférico. Primitivo. Ancestral. No Limiar do Mundo."
     "Ninguém jamais retornou."
 
-# Copyright (C) 2025 Bandeirinha
+# Copyright (C) 2026 Bandeirinha
 # Licensed under the GNU GPL v3.0 or later
 # Para apoiar: pixgg.com/bandeirinha
 
+# ─────────────────────────────────────────────────────────────────────
+# NOTAS DE ATUALIZAÇÃO v2.1.1 — ITENS, ARCOS E SPAWN
+# ─────────────────────────────────────────────────────────────────────
+#
+# ELMO ESPINHOSO (renomeado de Elmo da Fúria):
+#   Nome, descrição e narração atualizados. Ao equipar: mensagem de
+#   cabeçada/investida. Ao atacar com bônus ativo: linha de ação
+#   aleatória ("Cabeçada brutal!", "Investida agressiva!", etc.).
+#   Ao expirar: "Os espinhos do Elmo Espinhoso se partiram no impacto!"
+#   Efeito registrado em efeitos_ativos['elmo_espinhoso'] (1 ataque).
+#
+# PEDRA DE AFIAR — REFATORAÇÃO:
+#   Bônus de +2 aplicado no nome do item em equipados (Espada Curta +2
+#   → Espada Curta +4). Não toca arma['bonus']/arma['dano'] diretamente
+#   — elimina a dupla contagem que causava bônus de +3 ou mais.
+#   Dura 18 ataques (acertos ou erros). Aviso nos últimos 3.
+#   Ao expirar, nome volta ao original e stats são recalculados.
+#   Não funciona em armas mágicas (Cajados, Orbes) nem Manoplas.
+#
+# SISTEMA DE ARCO [b] — AJUSTES:
+#   [b] só dispara se arco já estiver em equipados (ativo ou inativo).
+#   Se arco na bolsa: pergunta antes de equipar (s/n).
+#   Se 2+ arcos na bolsa: lista numerada para escolher qual equipar.
+#   Se slots cheios: pede qual item substituir antes de equipar.
+#   Sem arco em lugar nenhum: mensagem clara e retorno sem ação.
+#
+# EFEITOS ESPECIAIS DE ITENS POR CLASSE:
+#   Machado Flamejante, Manoplas do Trovão, Adaga Envenenada, Lâmina
+#   Drenante, Machado do Sangramento e Espada Fantasma têm parâmetros
+#   distintos (chance, duração, dano, efeito bônus) por classe.
+#
+# SPAWN DE INIMIGOS — HIERARQUIA DE TIER:
+#   Tier 4 boss (Dracolich, Serpente Abissal, Cavaleiro Sem Nome):
+#     sala exclusiva, 1 único inimigo.
+#   Tier 3 boss (Sacerdote Devorador, Campeão da Morte):
+#     sala exclusiva + até 1 seguidor Tier 2 (40% de chance).
+#   Tier 2: máx 2 inimigos do mesmo tier, sem mistura.
+#   Tier 1: máx 3 inimigos. Quantidade total reduzida.
+#   pos_livre() garante que dois inimigos não ocupam a mesma célula.
+#
+# PROGRESSÃO POR PROFUNDIDADE (valores finais):
+#   Modo Extremo: andar 11+ em andar profundo (nunca no andar 1).
+#   Olho de Vecna: surge a partir do andar 21.
+#
+# CORREÇÕES DE BUGS:
+#   - Combate fantasma ao pisar em célula de inimigo morto:
+#     verificação and inimigo.esta_vivo() adicionada.
+#   - Goblin Furtivo: itens roubados em _itens_roubados, devolvidos
+#     ao jogador em _loot_inimigo ao derrotá-lo.
+#   - _mapa_ref sincronizado em _verificar_celula() e ao trocar sala
+#     (Pó de Revelação e Vela Votiva sempre leem o mapa correto).
+#   - Vela Votiva: lista armadilhas (tipo, posição, efeito),
+#     inimigos vivos (HP, CA, posição) e itens no chão.
+#   - Pó de Revelação: lista armadilhas com tipo e coordenada.
+#
 # ─────────────────────────────────────────────────────────────────────
 # NOTAS DE ATUALIZAÇÃO v2.0.0 — O LIMIAR
 # ─────────────────────────────────────────────────────────────────────
@@ -308,7 +363,7 @@ DESCRICOES_ITENS = {
     'Escudo dos Condenados':    "Pesado e amaldiçoado. CA alta + contra-ataque passivo.",
     'Elmo da Fúria':            "Aumenta ataque mas reduz CA. Bônus para o próximo golpe.",
     'Botas do Silêncio':        "Inimigos detectam a ≤2 tiles. 60% de passar despercebido. +15% fuga.",
-    'Manto das Sombras':        "Tecido das sombras. 70% fuga e durção de invisib. +2.",
+    'Manto das Sombras':        "Tecido das sombras. 70% fuga e duração de invisib. +2.",
     'Anel da Vitalidade':       "Aumenta HP máximo enquanto equipado.",
     'Anel de Regeneração':      "Restaura 1 HP por turno. Nunca se deve tirar.",
     'Amuleto de Resistência':   "+1 CA e +5 HP enquanto equipado.",
@@ -322,7 +377,7 @@ DESCRICOES_ITENS = {
     'Grimório Portal':          "Permite ao Mago abrir micro-portais em paredes, atravessando-as.",
     # ── COMUNS v1 ────────────────────────────────────────────────────
     'Bandagem':                 "Estanca feridas. +4 HP imediato.",
-    'Pedra de Afiar':           "+2 ataque no próximo combate. A borda decide.",
+    'Pedra de Afiar':           "+2 ataque nos próximos combates. A borda decide.",
     'Erva Medicinal':           "Neutraliza veneno e restaura 3 HP.",
     'Adaga Simples':            "Arma básica +1 para qualquer classe.",
     'Escudo de Madeira':        "+2 CA. Vai durar até não durar.",
@@ -527,7 +582,23 @@ class Personagem:
                 contra = rolar_dado(4)
                 alvo.hp -= contra
                 print(f"🛡️ O Escudo dos Condenados reage! Contra-ataque automático: {contra} de dano!")
-            return
+
+        # ── Decrementar contador de Pedra de Afiar ────────────────────
+        if isinstance(self.efeitos_ativos.get('afiado'), dict):
+            af = self.efeitos_ativos['afiado']
+            af['ataques_restantes'] -= 1
+            if af['ataques_restantes'] <= 3:
+                print(f"🗡️ Fio da lâmina desgastando... ({af['ataques_restantes']} ataques restantes)")
+            if af['ataques_restantes'] <= 0:
+                # Restaurar: só renomear o item em equipados de volta ao original
+                nome_afiado   = af.get('item_eq_afiado')
+                nome_original = af.get('item_eq_original')
+                if nome_afiado and nome_original and nome_afiado in self.equipados:
+                    idx_eq = self.equipados.index(nome_afiado)
+                    self.equipados[idx_eq] = nome_original
+                self.atualizar_atributos_equipamento()
+                del self.efeitos_ativos['afiado']
+                print(f"🗡️ O fio da lâmina se desgastou. Arma voltou ao estado original.")
 
         # ============================
         # ⚡🔥🐍 EFEITOS ESPECIAIS DE ITENS
@@ -1408,6 +1479,7 @@ class Personagem:
                 self.ac += 1
                 self.base_ac += 1
                 print("📘 Você absorve o que pode do tomo — CA +1.")
+            time.sleep(2)
 
         elif item.startswith('Amuleto de Resistência'):
             bonus = int(item.split('+')[1]) if '+' in item else 1
@@ -1523,12 +1595,57 @@ class Personagem:
             time.sleep(1)
 
         elif item == 'Pedra de Afiar':
-            self.efeitos_ativos['afiado'] = 1   # 1 combate
-            self.bonus_temporario += 2
+            # Armas excluídas: mágicas, Manoplas do Trovão, Corrente do Espectro
+            EXCLUIDAS = {'Manoplas do Trovão', 'Cajado de Gelo', 'Cajado de Osso',
+                         'Orbe Mental de Vecna', 'Corrente do Espectro'}
+            arma = self.arma
+            if arma is None or arma['nome'] in EXCLUIDAS:
+                print("🗡️ A pedra desliza pela empunhadura...")
+                time.sleep(0.8)
+                print("   ⚠️  Esta arma não pode ser afiada (mágica ou sem borda).")
+                print("   ↩️  A Pedra de Afiar é devolvida ao inventário.")
+                self.inventario.append(item)
+                return
+            # A dupla contagem acontece se modificarmos arma['bonus']/arma['dano']
+            # diretamente: atualizar_atributos_equipamento() já lê o +N do nome
+            # do item em equipados e soma a self.ataque_bonus / self.dano_lados,
+            # e atacar() soma self.arma['bonus'] separadamente.
+            # Solução: mudar SÓ o nome em equipados; o atualizar cuida do resto.
+            bonus_afiar = 2
+
+            # Localizar o item exato em equipados
+            item_eq_original = next(
+                (eq for eq in self.equipados if arma['nome'] in eq),
+                None
+            )
+
+            # Calcular bônus novo para o nome (Espada Curta +2 → +4)
+            if item_eq_original and '+' in item_eq_original:
+                base_nome = item_eq_original.split('+')[0].rstrip()
+                bonus_atual = int(item_eq_original.split('+')[1])
+                nome_afiado = f"{base_nome} +{bonus_atual + bonus_afiar}"
+            elif item_eq_original:
+                nome_afiado = f"{item_eq_original} +{bonus_afiar}"
+            else:
+                nome_afiado = None
+
+            # Renomear em equipados (sem tocar em arma['bonus']/arma['dano'])
+            if item_eq_original and nome_afiado:
+                idx_eq = self.equipados.index(item_eq_original)
+                self.equipados[idx_eq] = nome_afiado
+
+            self.efeitos_ativos['afiado'] = {
+                'ataques_restantes': 8,
+                'bonus_aplicado':    bonus_afiar,
+                'arma_nome':         arma['nome'],
+                'item_eq_original':  item_eq_original,
+                'item_eq_afiado':    nome_afiado,
+            }
+            self.atualizar_atributos_equipamento()
             print("🗡️ A lâmina canta ao tocar a pedra...")
             time.sleep(0.8)
-            print("   ✅ +2 ataque no próximo combate.")
-            time.sleep(1)
+            print(f"   ✅ {nome_afiado or arma['nome']} — +{bonus_afiar} ataque e dano por 8 ataques.")
+            time.sleep(2)
 
         elif item == 'Erva Medicinal':
             removidos = [e for e in ('veneno', 'veneno_duplo') if e in self.efeitos_ativos]
@@ -1731,8 +1848,8 @@ class Personagem:
                               for pos, est in mapa.estruturas.items()
                               if est.startswith('armadilha_')]
                 efeitos_armadilha = {
-                    'espinhos':    'dano físico imediato',
-                    'flechas':     'dano físico imediato',
+                    'espinhos':     'dano físico imediato',
+                    'flechas':      'dano físico imediato',
                     'gás venenoso': 'veneno 3 turnos',
                     'bomba mágica': 'dano mágico imediato',
                 }
@@ -1743,7 +1860,14 @@ class Personagem:
                         print(f"      🔺 {tipo.capitalize()} em ({pos[0]}, {pos[1]}) — {efeito}")
                 else:
                     print("   ✅ Nenhuma armadilha nesta sala.")
-                itens_chao = [(pos, nome) for pos, nome in mapa.itens.items()]
+                inimigos_vivos = [i for i in mapa.inimigos if i.esta_vivo()]
+                if inimigos_vivos:
+                    print(f"   👁️  {len(inimigos_vivos)} inimigo(s) na sala:")
+                    for ini in inimigos_vivos:
+                        print(f"      ! {ini.nome}  HP: {ini.hp}/{ini.hp_max}  CA: {ini.ac}  em {ini.pos}")
+                else:
+                    print("   ✅ Nenhum inimigo nesta sala.")
+                itens_chao = list(mapa.itens.items())
                 if itens_chao:
                     print(f"   🎁 {len(itens_chao)} item(ns) no chão:")
                     for pos, nome in itens_chao:
@@ -1752,7 +1876,7 @@ class Personagem:
                     print("   🔍 Nenhum item no chão desta sala.")
             else:
                 print("   ⚠️  A chama vacila — use fora do combate para leitura completa.")
-            time.sleep(1.5)
+            time.sleep(2.5)
 
         elif item == 'Poção de Sangue':
             cura = 12
@@ -1803,7 +1927,7 @@ class Personagem:
             self.arma = {'nome': 'Espada Longa', 'bonus': atk, 'dano': 10}
             self.gerenciar_equipamento(item)
             print(f"⚔️ Espada Longa empunhada! +{atk} ataque, 1d10 dano.")
-            time.sleep(1)
+            time.sleep(2)
 
         elif item == 'Luvas de Combate':
             self.gerenciar_equipamento(item)
@@ -1814,7 +1938,7 @@ class Personagem:
             print("🔮 O Talismã Protetor pulsa com proteção antiga...")
             time.sleep(0.8)
             print("   ✅ O próximo acerto crítico (dano > 10) será reduzido a 3 de dano.")
-            time.sleep(1)
+            time.sleep(2)
 
         elif item == 'Pó de Gelo':
             print("❄️ Guarde o Pó de Gelo para usar em combate (opção de item).")
@@ -2506,6 +2630,7 @@ class GoblinFurtivo(InimigoEspecial):
             dano_lados=5,
             pos=pos, tipo='comum')
         self._fugiu = False
+        self._itens_roubados = []   # itens roubados durante o combate
 
     def atacar(self, alvo):
         if getattr(alvo, 'invisivel', False):
@@ -2530,6 +2655,7 @@ class GoblinFurtivo(InimigoEspecial):
             if random.random() < 0.15 and getattr(alvo, 'inventario', []):
                 roubado = random.choice(alvo.inventario)
                 alvo.inventario.remove(roubado)
+                self._itens_roubados.append(roubado)
                 print(f"   💰 Goblin ROUBA {roubado} no meio do golpe!")
         else:
             print(f"🗡️ Goblin erra — tropeça no próprio pé.")
@@ -3780,6 +3906,18 @@ def _coletar_flechas(jogador, disponivel):
 
 def _loot_inimigo(jogador, inimigo):
     """Checa se inimigo derrubou loot especial (arma portada)."""
+    # ── Itens roubados pelo Goblin Furtivo ────────────────────────────
+    itens_roubados = getattr(inimigo, '_itens_roubados', [])
+    if itens_roubados:
+        print(f"💰 Você recupera os itens que o Goblin havia roubado:")
+        for item in itens_roubados:
+            if jogador.pode_carregar(item):
+                jogador.inventario.append(item)
+                print(f"   ✅ {item} recuperado!")
+            else:
+                print(f"   ⚠️  {item} — sem espaço na bolsa, fica no chão.")
+        inimigo._itens_roubados = []
+        time.sleep(1)
     # ── Drop de flechas ────────────────────────────────────────────────
     # Caso 1: Arqueiro das Trevas — sempre dropa flechas (6–12), escolha de qtd
     if inimigo.nome == 'Arqueiro das Trevas':
@@ -4197,12 +4335,18 @@ class Mapa:
             return
 
         elif tipo_andar == "elite":
-            print("👹 Uma presença poderosa domina esta sala...")
-            pos_lista = [(x, y) for y in range(1, self.altura - 1)
+            pos_lista_elite = [(x, y) for y in range(1, self.altura - 1)
                          for x in range(1, self.largura - 1) if self.matriz[y][x] == '.']
-            if pos_lista:
-                x, y = random.choice(pos_lista)
+            if pos_lista_elite:
+                x, y = random.choice(pos_lista_elite)
                 self._spawn_inimigo_elite(x, y, dificuldade)
+                # Boss rooms não têm outros inimigos — só o boss
+                if dificuldade >= 30:
+                    print("💀 Uma presença singular domina esta câmara. Não há mais nada vivo aqui.")
+                    time.sleep(1.5)
+                else:
+                    print("👹 Uma presença poderosa domina esse lugar...")
+                    time.sleep(1)
             return
 
         elif tipo_andar == "tesouro":
@@ -4400,96 +4544,79 @@ class Mapa:
             self.inimigos.append(cls((x, y), dificuldade))
 
     def _popular_inimigos(self, dificuldade):
-        qtd_inimigos = random.randint(1, 2 + dificuldade // 5)
+        """
+        Popula a sala com inimigos respeitando hierarquia de tier:
+        - Tier 4 boss (Dracolich, Serpente, Cavaleiro): sala exclusiva, 1 inimigo.
+        - Tier 3 boss (Sacerdote, Campeão): sala exclusiva + até 1 seguidor Tier 2.
+        - Tiers 2/1: mistura limitada apenas entre o mesmo tier.
+        """
+        BOSS_T4 = [CavaleiroSemNome, SerpenteAbissal, Dracolich]
+        BOSS_T3 = [SacerdoteDevedor, CampeaoDaMorte]
 
-        for _ in range(qtd_inimigos):
-            pos_lista = [(x, y) for y in range(self.altura) for x in range(self.largura)
-                         if self.matriz[y][x] == '.']
-            if not pos_lista:
-                break
-            x, y = random.choice(pos_lista)
-            roll  = random.random()
+        pos_lista = [(x, y) for y in range(self.altura) for x in range(self.largura)
+                     if self.matriz[y][x] == '.']
+        if not pos_lista:
+            return
 
-            # ── TIER 4: Modo extremo (dif >= 42 = andar 7+) ou extrema pura ──
-            # CavaleiroSemNome, Dracolich, SerpenteAbissal, EspectrodasProfundezas
-            if self.extrema and dificuldade >= 30:
-                if roll < 0.28:
-                    self.inimigos.append(CavaleiroSemNome((x, y), dificuldade))
-                elif roll < 0.50:
-                    self.inimigos.append(SerpenteAbissal((x, y), dificuldade))
-                elif roll < 0.68:
-                    self.inimigos.append(Dracolich((x, y), dificuldade))
-                elif roll < 0.82:
-                    self.inimigos.append(EspectrodasProfundezas((x, y), dificuldade))
-                elif roll < 0.91:
-                    cls = random.choice([CampeaoDaMorte, GargulaDePedra])
-                    self.inimigos.append(cls((x, y), dificuldade))
-                else:
-                    self.inimigos.append(ArautodoVazio((x, y), dificuldade))
+        def pos_livre():
+            """Retorna posição aleatória sem inimigo já posicionado."""
+            ocupadas = {i.pos for i in self.inimigos}
+            livres = [p for p in pos_lista if p not in ocupadas]
+            return random.choice(livres) if livres else None
 
-            # Tier 4 sem extremo: só em dif >= 48 (andar 8+)
-            elif dificuldade >= 48:
-                if roll < 0.28:
-                    self.inimigos.append(CavaleiroSemNome((x, y), dificuldade))
-                elif roll < 0.50:
-                    self.inimigos.append(SerpenteAbissal((x, y), dificuldade))
-                elif roll < 0.68:
-                    self.inimigos.append(Dracolich((x, y), dificuldade))
-                elif roll < 0.82:
-                    self.inimigos.append(EspectrodasProfundezas((x, y), dificuldade))
-                else:
-                    cls = random.choice([CampeaoDaMorte, GargulaDePedra])
-                    self.inimigos.append(cls((x, y), dificuldade))
+        # ── TIER 4 BOSS — sala exclusiva, 1 único ─────────────────────
+        if (self.extrema and dificuldade >= 30) or dificuldade >= 48:
+            cls = random.choice(BOSS_T4)
+            p = pos_livre()
+            if p:
+                self.inimigos.append(cls(p, dificuldade))
+            # EspectrodasProfundezas pode aparecer sozinho também, mas não mistura
+            if random.random() < 0.35 and dificuldade >= 54:
+                p2 = pos_livre()
+                if p2:
+                    self.inimigos.append(EspectrodasProfundezas(p2, dificuldade))
+            return   # sala exclusiva — nenhum outro inimigo
 
-            # ── TIER 3: Andares profundos (dif 30–47 = andar 5–7) ─────────
-            # GargulaDePedra, CampeaoDaMorte, SacerdoteDevedor, ArautodoVazio
-            elif dificuldade >= 30:
-                if roll < 0.22:
-                    cls = random.choice([SacerdoteDevedor, ArautodoVazio])
-                    self.inimigos.append(cls((x, y), dificuldade))
-                elif roll < 0.42:
-                    cls = random.choice([GargulaDePedra, CampeaoDaMorte])
-                    self.inimigos.append(cls((x, y), dificuldade))
-                elif roll < 0.60:
-                    cls = random.choice([VermedaEntranhas, CarnicaldaProfundeza])
-                    self.inimigos.append(cls((x, y), dificuldade))
-                elif roll < 0.75:
-                    self.inimigos.append(OrcBerserker((x, y), dificuldade))
-                elif roll < 0.88:
-                    self.inimigos.append(ArqueiroDasTrevas((x, y), dificuldade))
-                else:
-                    self.inimigos.append(EsqueletoGuardiao((x, y), dificuldade))
+        # ── TIER 3 BOSS — sala exclusiva + 1 seguidor T2 opcional ──────
+        elif dificuldade >= 30:
+            cls = random.choice(BOSS_T3)
+            p = pos_livre()
+            if p:
+                self.inimigos.append(cls(p, dificuldade))
+            # Seguidor Tier 2 (único, 40% de chance) — não mistura T1
+            if random.random() < 0.40:
+                p2 = pos_livre()
+                if p2:
+                    seguidor = random.choice([GargulaDePedra, ArautodoVazio])
+                    self.inimigos.append(seguidor(p2, dificuldade))
+            return   # sala exclusiva
 
-            # ── TIER 2: Andares médios (dif 18–29 = andar 3–4) ────────────
-            # OrcBerserker, ArqueiroDasTrevas, VermedaEntranhas, CarnicaldaProfundeza
-            elif dificuldade >= 18:
-                if roll < 0.25:
-                    cls = random.choice([VermedaEntranhas, CarnicaldaProfundeza])
-                    self.inimigos.append(cls((x, y), dificuldade))
-                elif roll < 0.48:
-                    self.inimigos.append(OrcBerserker((x, y), dificuldade))
-                elif roll < 0.68:
-                    self.inimigos.append(ArqueiroDasTrevas((x, y), dificuldade))
-                elif roll < 0.84:
-                    self.inimigos.append(EsqueletoGuardiao((x, y), dificuldade))
-                else:
-                    self.inimigos.append(GoblinFurtivo((x, y), dificuldade))
+        # ── TIER 2 — máx 2 inimigos, mesmo tier ───────────────────────
+        elif dificuldade >= 18:
+            qtd = random.randint(1, 2)
+            pool = [OrcBerserker, ArqueiroDasTrevas, VermedaEntranhas, CarnicaldaProfundeza]
+            for _ in range(qtd):
+                p = pos_livre()
+                if not p:
+                    break
+                self.inimigos.append(random.choice(pool)(p, dificuldade))
 
-            # ── TIER 1: Andares rasos (dif 1–17 = andar 1–2) ──────────────
-            else:
+        # ── TIER 1 — máx 3 inimigos (ratos podem aparecer em bando) ───
+        else:
+            qtd = random.randint(1, 3)
+            for i in range(qtd):
+                p = pos_livre()
+                if not p:
+                    break
+                roll = random.random()
                 if roll < 0.30:
-                    cls = random.choice([RatoCarniceiro, GoblinFurtivo])
-                    self.inimigos.append(cls((x, y), dificuldade))
-                elif roll < 0.52:
-                    self.inimigos.append(EsqueletoGuardiao((x, y), dificuldade))
-                elif roll < 0.68:
-                    self.inimigos.append(VermedaEntranhas((x, y), dificuldade))
-                elif roll < 0.82:
-                    self.inimigos.append(CarnicaldaProfundeza((x, y), dificuldade))
+                    self.inimigos.append(random.choice([RatoCarniceiro, GoblinFurtivo])(p, dificuldade))
+                elif roll < 0.55:
+                    self.inimigos.append(EsqueletoGuardiao(p, dificuldade))
+                elif roll < 0.75:
+                    self.inimigos.append(VermedaEntranhas(p, dificuldade))
                 else:
-                    for _ in range(random.randint(2, 3)):
-                        pos2 = random.choice(pos_lista)
-                        self.inimigos.append(RatoCarniceiro(pos2, dificuldade))
+                    self.inimigos.append(CarnicaldaProfundeza(p, dificuldade))
 
     def tem_linha_de_visao(self, x0, y0, x1, y1):
         """
@@ -4602,7 +4729,7 @@ class Mapa:
         if not full_vis:
             if vision_range >= 2:
                 luz_str = '🔦' if 'Tocha Suja' in getattr(jogador, 'equipados', []) else '🕯️'
-                vis_tag = f" {luz_str} visão:2"
+                vis_tag = f" {luz_str} visão:2 "
             else:
                 vis_tag = '⚫ escuridão '
             vlen = len(vis_tag) + 4   # +4 for "  ╚" and "╝"
@@ -5930,7 +6057,7 @@ class DungeonGame:
             extras = ['Capa de Couro', 'poção de invisibilidade', 'Adaga Simples +1', 'explosivo arremessável']
 
         else:  # Assassino
-            itens_base = ['Adaga Envenenada +1', 'Botas do Silêncio', 'antídoto', 'Runa do Limiar']
+            itens_base = ['Adaga Envenenada +1', 'Botas do Silêncio', 'antídoto', 'Runa do Limiar', 'Diário Perdido']
             porteiro_curto([
                 "Assassino. Silêncio, veneno e um único golpe.",
                 "Crít em 19 ou 20. Veneno automático no golpe letal.",
@@ -5980,15 +6107,15 @@ class DungeonGame:
 
         bonus_narrativo(f"Equipamento base registrado e equipado: {', '.join(itens_base)}.")
 
-        """
+        # VERIFICAR
         # ── Flechas iniciais para quem tem Arco Élfico ────────────────
-        if personagem.arma and personagem.arma.get('nome') in ('Arco Élfico', 'Arco da Ruína'):
+        if personagem.arma and personagem.arma.get('nome') in ('Arco Élfico +1', 'Arco da Ruína +1'):
             personagem.flechas = 20
-            print("   🏹 20 flechas concedidas — munição inicial do Arco Élfico.")
+            print("   🏹 20 flechas concedidas — munição inicial")
 
         input("\n  [ ENTER ]")
         limpar_tela()
-        """
+
         # ── 5. DOM ESPECIAL — bônus de atributo (múltipla escolha) ────
         porteiro_curto([
             "Cada um que chega ao Limiar traz um dom.",
@@ -6420,17 +6547,17 @@ class DungeonGame:
             livre = round(jogador.capacidade_peso - jogador.peso_atual, 2)
             print(f"║  ⚖️  Carga: {jogador.peso_atual:.1f}/{jogador.capacidade_peso}kg"
                   f"  (bolsa {jogador.peso_bolsa:.1f} + vest. {jogador.peso_vestido:.1f})\n"
-                  f"  livre: {livre:.1f}kg")
+                  f"║      livre: {livre:.1f}kg")
             print("╠══════════════════════════════════════════════════╣")
 
-            # ── BOLSA ──
+            # ── BOLSA ── # Ajustar slots_equip ou condições para equipar arco 28/03
             hdr_b = "► BOLSA" if secao == 'bolsa' else "  BOLSA"
-            slots_equip = f"({ne}/6 equipados)"
+#            slots_equip = f"({ne}/6 equipados)"
             # Flechas aparecem como entrada virtual no fim da bolsa
             flechas_qtd = getattr(jogador, 'flechas', 0)
             n_virtual = 1 if flechas_qtd > 0 else 0   # 1 slot virtual para flechas
             nb_total = nb + n_virtual
-            print(f"║  {hdr_b}                        {slots_equip:>16} ║")
+#            print(f"║  {hdr_b}                        {slots_equip:>16} ║")
             if not bolsa and flechas_qtd == 0:
                 print("║  ( bolsa vazia )                                 ║")
             else:
@@ -6452,7 +6579,7 @@ class DungeonGame:
 
             # ── EQUIPADOS ──
             hdr_e = "► EQUIPADOS ⚔️" if secao == 'equipados' else "  EQUIPADOS ⚔️"
-            print(f"║  {hdr_e}  (pesam na carga, max 6)         ║")
+            print(f"║  {hdr_e}                                  ║")
             if not equip:
                 print("║  ( nenhum equipado )                           ║")
             else:
@@ -6526,7 +6653,7 @@ class DungeonGame:
             qtd = getattr(j, 'flechas', 0)
             peso_total = round(qtd * 0.05, 2)
             print(f"╔══════════════════════════════════════════════════╗")
-            print(f"║  🏹 Flechas ({qtd})                              ║")
+            print(f"║  🏹 Flechas ({qtd})                               ║")
             print(f"║  ⚖️  {peso_total:.1f}kg  ({qtd} × 0.05kg/unidade) ║")
             print(f"╠══════════════════════════════════════════════════╣")
             print(f"║  Usada automaticamente pelo arco.                ║")
@@ -6808,8 +6935,12 @@ class DungeonGame:
 ║  ENTER    — agir (usar/equipar/examinar/largar)  ║
 ║  q        — fechar inventário                    ║
 ║                                                  ║
-║  obs: Múltiplos itens acumulam status mas só um  ║
-║       efeito pode ser ativado por vez.           ║
+║  obs: - Múltiplos itens acumulam status mas só   ║
+║       um efeito pode ser ativado por vez.        ║
+║                                                  ║
+║        - O Arco pode ser equipado como o sétimo  ║
+║       item da build, superando a capacidade      ║
+║       máxima original                            ║
 ║                                                  ║
 ╠══════════════════════════════════════════════════╣
 ║  ESCADAS:                                        ║
@@ -6818,8 +6949,6 @@ class DungeonGame:
 ╠══════════════════════════════════════════════════╣
 ║  PESO:                                           ║
 ║  Bolsa + equipamentos = carga total              ║
-║  Equipar NÃO alivia o peso — você veste, não     ║
-║  abandona. Largar no chão alivia.                ║
 ╠══════════════════════════════════════════════════╣
 ║  NO COMBATE:                                     ║
 ║  1 — Atacar  2 — Magia/Hab  3 — Item  4 — Fugir  ║
@@ -7061,46 +7190,99 @@ class DungeonGame:
     def _usar_arco_explorar(self):
         """
         Disparo de arco fora do combate.
-        - Auto-equipa Arco Élfico do inventário se não estiver equipado.
-        - Requer flechas disponíveis.
-        - Range 3 (Manhattan) com linha de visão livre (sem parede entre jogador e alvo).
-        - Inimigo atingido fica ALERTADO; se sobreviver entra em combate.
-        - Arco Élfico: 25% disparo duplo (gasta 2 flechas).
-        - Ao acabar flechas o arco é desequipado automaticamente.
+        - Requer arco em equipados (ativo ou não) ou na bolsa com confirmação.
+        - Se na bolsa: pergunta antes de equipar, pede substituição se slots cheios.
+        - Range 3 (Manhattan) com linha de visão livre.
         """
         j = self.jogador
+
+        # ── 1. Arco já é a arma ativa ─────────────────────────────────
         tem_arco = j.arma and j.arma['nome'] in ('Arco Élfico', 'Arco da Ruína')
 
-        # ── Reequipar arco já em equipados (mas arma ativa é outra) ──
+        # ── 2. Arco em equipados mas não ativo — reativar silenciosamente
         if not tem_arco:
-            arco_eq = next((eq for eq in j.equipados if eq.startswith('Arco Élfico') or eq.startswith('Arco da Ruína')), None)
+            arco_eq = next(
+                (eq for eq in j.equipados
+                 if eq.startswith('Arco Élfico') or eq.startswith('Arco da Ruína')),
+                None
+            )
             if arco_eq:
                 bonus = int(arco_eq.split('+')[1]) if '+' in arco_eq else 1
-                nome_arco_real = 'Arco da Ruína' if arco_eq.startswith('Arco da Ruína') else 'Arco Élfico'
-                b = max(1, bonus - 1) if nome_arco_real == 'Arco da Ruína' else bonus
-                j.arma = {'nome': nome_arco_real, 'bonus': b, 'dano': b}
+                nome_real = 'Arco da Ruína' if arco_eq.startswith('Arco da Ruína') else 'Arco Élfico'
+                b = max(1, bonus - 1) if nome_real == 'Arco da Ruína' else bonus
+                j.arma = {'nome': nome_real, 'bonus': b, 'dano': b}
                 j.atualizar_atributos_equipamento()
                 tem_arco = True
-                print(f"🏹 {nome_arco_real} reativado como arma principal.")
+                print(f"🏹 {nome_real} reativado como arma principal.")
                 time.sleep(0.8)
 
-        # ── Equip se arco está na bolsa mas não foi equipado ainda ───
+        # ── 3. Arco na bolsa — perguntar antes de equipar ─────────────
         if not tem_arco:
-            arco_inv = next((it for it in j.inventario if it.startswith('Arco Élfico') or it.startswith('Arco da Ruína')), None)
-            if arco_inv:
+            arcos_inv = [it for it in j.inventario
+                         if it.startswith('Arco Élfico') or it.startswith('Arco da Ruína')]
+            if arcos_inv:
+                # Escolher qual arco se houver mais de um
+                if len(arcos_inv) == 1:
+                    arco_inv = arcos_inv[0]
+                    resp = input(f"🏹 {arco_inv} está na bolsa. Equipar agora? (s/n): ").strip().lower()
+                    if resp != 's':
+                        print("   Cancelado.")
+                        time.sleep(0.8)
+                        return
+                else:
+                    print("🏹 Arcos disponíveis na bolsa:")
+                    for i, a in enumerate(arcos_inv, 1):
+                        print(f"   {i}. {a}  ({peso_item(a):.1f}kg)")
+                    print("   0. Cancelar")
+                    sel = input("   Qual equipar? >> ").strip()
+                    if sel == '0' or sel == '':
+                        return
+                    try:
+                        idx_arco = int(sel) - 1
+                        if idx_arco < 0 or idx_arco >= len(arcos_inv):
+                            return
+                        arco_inv = arcos_inv[idx_arco]
+                    except ValueError:
+                        return
+
+                # Slots cheios — pedir substituição
+                if len(j.equipados) >= 6:
+                    limpar_tela()
+                    self._mostrar_hud()
+                    print(f"\n🏹 Slots cheios (6/6). Escolha um item para desequipar:\n")
+                    for i, eq in enumerate(j.equipados, 1):
+                        print(f"   {i}. {eq}  ({peso_item(eq):.1f}kg)")
+                    print("   0. Cancelar")
+                    sel = input("\n   >> ").strip()
+                    if sel == '0' or sel == '':
+                        return
+                    try:
+                        idx_rem = int(sel) - 1
+                        if idx_rem < 0 or idx_rem >= len(j.equipados):
+                            return
+                    except ValueError:
+                        return
+                    removido = j.equipados.pop(idx_rem)
+                    j.inventario.append(removido)
+                    if j.arma and j.arma.get('nome', '') in removido:
+                        j.arma = None
+                    print(f"   🔓 {removido} devolvido à bolsa.")
+                    time.sleep(0.8)
+
                 bonus = int(arco_inv.split('+')[1]) if '+' in arco_inv else 1
-                nome_arco_real = 'Arco da Ruína' if arco_inv.startswith('Arco da Ruína') else 'Arco Élfico'
-                b = max(1, bonus - 1) if nome_arco_real == 'Arco da Ruína' else bonus
-                j.arma = {'nome': nome_arco_real, 'bonus': b, 'dano': b}
+                nome_real = 'Arco da Ruína' if arco_inv.startswith('Arco da Ruína') else 'Arco Élfico'
+                b = max(1, bonus - 1) if nome_real == 'Arco da Ruína' else bonus
+                j.arma = {'nome': nome_real, 'bonus': b, 'dano': b}
                 j.inventario.remove(arco_inv)
                 j.equipados.append(arco_inv)
                 j.atualizar_atributos_equipamento()
                 tem_arco = True
-                print(f"🏹 {nome_arco_real} equipado automaticamente.")
+                print(f"🏹 {nome_real} equipado.")
                 time.sleep(0.8)
             else:
-                print("🏹 Você não tem nenhum Arco equipado.")
-                time.sleep(1); return
+                print("🏹 Você não possui nenhum Arco na build ou na bolsa.")
+                time.sleep(1.5)
+                return
 
         flechas = getattr(j, 'flechas', 0)
         if flechas <= 0:
@@ -7424,6 +7606,7 @@ class DungeonGame:
                 time.sleep(1)
             self.sala_pos = nova_sala
             self.mapa = regiao.sala(nova_sala)
+            self.jogador._mapa_ref = self.mapa
             self._registrar_visita(self.regiao_atual_key, nova_sala)
             self._atualizar_dificuldade_regiao()
             self.x, self.y = self._spawn_borda_oposta(dx, dy)
@@ -7685,6 +7868,8 @@ class DungeonGame:
 
     def _verificar_celula(self):
         """Verifica eventos na célula atual (itens, inimigos, escadas, estruturas)."""
+        # Manter _mapa_ref sempre sincronizado com o mapa atual
+        self.jogador._mapa_ref = self.mapa
         x, y = self.x, self.y
 
         # ── Item no chão ──
@@ -7754,7 +7939,7 @@ class DungeonGame:
 
         # Inimigo
         for inimigo in self.mapa.inimigos:
-            if inimigo.pos == (x, y):
+            if inimigo.pos == (x, y) and inimigo.esta_vivo():
                 if self.jogador.invisivel:
                     if isinstance(inimigo, OlhoDeVecna):
                         print("🧿 O Olho de Vecna dissipa sua invisibilidade!")

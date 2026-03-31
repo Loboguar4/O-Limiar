@@ -1,4 +1,4 @@
-# O LIMIAR
+# O LIMIAR ~~ v2.1.1
 ### *Dungeon Crawl RPG de Terminal*
 
 > *"Ninguém jamais retornou."*
@@ -201,11 +201,35 @@ Inimigos fora da luz não aparecem na lista de alvos de arco ou magia.
 
 ## Notas de Atualização
 
-### v2.0.0 — O Limiar (atual)
+### v2.1.1 — Itens, Arcos e Spawn (atual)
+
+**Elmo Espinhoso** (renomeado de Elmo da Fúria) — narração de cabeçada/investida ao atacar, mensagem de "espinhos quebrados" ao expirar.
+
+**Pedra de Afiar refatorada** — o `+2` é acumulado no nome do item em equipados (`Espada Curta +2 → +4`), nunca em `arma['bonus']` diretamente, eliminando a dupla contagem. Dura 8 ataques. Aviso nos últimos 3. Restaura ao expirar. Não funciona em armas mágicas.
+
+**Sistema de arco `[b]` aprimorado** — só dispara se arco estiver em equipados. Se na bolsa: pergunta antes de equipar. Se 2+ arcos na bolsa: menu de escolha numerado. Se slots cheios: pede substituição. Sem arco em lugar nenhum: mensagem clara.
+
+**Efeitos especiais de armas por classe** — Machado Flamejante, Manoplas, Adaga Envenenada, Lâmina Drenante, Machado do Sangramento e Espada Fantasma têm parâmetros distintos de chance, duração e dano por classe.
+
+**Spawn de inimigos — hierarquia de tier reforçada:**
+- Tier 4 (Dracolich, Serpente Abissal, Cavaleiro Sem Nome): sala exclusiva, 1 único inimigo
+- Tier 3 (Sacerdote Devorador, Campeão da Morte): sala exclusiva + até 1 seguidor T2 (40%)
+- Tier 2: máx 2 inimigos do mesmo tier, sem mistura com T1
+- Tier 1: máx 3 inimigos; dois inimigos nunca ocupam a mesma célula
+
+**Correções de bugs:**
+- Combate fantasma ao pisar em célula de inimigo morto: `and inimigo.esta_vivo()` adicionado
+- Goblin Furtivo dropa itens roubados ao ser derrotado (`_itens_roubados`)
+- `_mapa_ref` sincronizado em `_verificar_celula()` — Pó de Revelação e Vela Votiva sempre leem o mapa correto
+- Vela Votiva mostra armadilhas (tipo + posição + efeito), inimigos vivos (HP, CA, pos) e itens no chão
+- Pó de Revelação mostra armadilhas com tipo e coordenada
+
+### v2.0.0 — O Limiar
 - **Renomeado** de *Masmorras Liminares* para **O Limiar**
 - **Menu principal** com tela de título ASCII, névoa animada e fade
 - **Sistema de Save/Load** completo com preservação de estado de navegação e topologia de andares
 - **Grimório de Aventuras**: gerenciamento de saves com exclusão por índice e renumeração
+- **Sessão zero** oferece salvar ao fim da criação de personagem
 
 ### v1.9.x — Combate à Distância e Labirinto
 - **Arco Élfico** com sistema de flechas por unidade (peso 0.05kg/unidade, coleta parcial)
