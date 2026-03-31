@@ -162,8 +162,6 @@ Saves em JSON em `~/.o_limiar/saves/`. O estado preservado inclui:
 
 O labirinto é regenerado com inimigos e itens novos, mas a topologia de rotas e escadas é preservada pelas coordenadas de entrada salvas.
 
-**Sessão zero:** após criação do personagem, o Porteiro oferece salvar antes de abrir o portão.
-
 **Grimório de Aventuras:** menu de saves com suporte a exclusão por índice (`del 2, 4`) e renumeração automática dos slots restantes.
 
 ---
@@ -229,7 +227,6 @@ Inimigos fora da luz não aparecem na lista de alvos de arco ou magia.
 - **Menu principal** com tela de título ASCII, névoa animada e fade
 - **Sistema de Save/Load** completo com preservação de estado de navegação e topologia de andares
 - **Grimório de Aventuras**: gerenciamento de saves com exclusão por índice e renumeração
-- **Sessão zero** oferece salvar ao fim da criação de personagem
 
 ### v1.9.x — Combate à Distância e Labirinto
 - **Arco Élfico** com sistema de flechas por unidade (peso 0.05kg/unidade, coleta parcial)
@@ -239,8 +236,8 @@ Inimigos fora da luz não aparecem na lista de alvos de arco ou magia.
 - Linha de visão (Bresenham) bloqueando luz, magia e flechas por paredes
 - **AndarLabirinto** com coordenadas por escada: escadas distintas levam a salas distintas
 - Garantia de `escada_subir` em salas de entrada (anti-softlock)
-- **Modo Extremo** ativado apenas a partir do andar 11 em profundidade real
-- **Olho de Vecna** surge somente a partir do andar 21
+- **Modo Extremo** ativado apenas a partir do andar 7 em profundidade real
+- **Olho de Vecna** surge somente a partir do andar 14
 
 ### v1.8.x — Itens e Efeitos
 - Diário Perdido: lore de Orvyn Tess, Cartógrafo do Rei; salva automaticamente
