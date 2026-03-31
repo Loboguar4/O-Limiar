@@ -193,7 +193,7 @@ Inimigos fora da luz não aparecem na lista de alvos de arco ou magia.
 | 2 | Orc Berserker, Arqueiro das Trevas | 3–4 |
 | 3 | Sacerdote Devorador, Arauto do Vazio, Gárgula de Pedra, Campeão da Morte | 5–7 |
 | 4 | Cavaleiro Sem Nome, Serpente Abissal, Dracolich, Espectro das Profundezas | 8+ |
-| Chefe | **Olho de Vecna** | Andar 21+ |
+| Chefe | **Olho de Vecna** | Andar 14+ |
 
 ---
 
