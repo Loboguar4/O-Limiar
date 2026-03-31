@@ -272,4 +272,4 @@ Licença: GNU GPL v3.0 ou posterior
 
 ---
 
-*"Atmosférico. Primitivo. Ancestral. No Limiar do Mundo."*
+*"Atmosférico. Punitivo. Ancestral. No Limiar do Mundo."*
