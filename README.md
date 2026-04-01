@@ -201,7 +201,7 @@ Inimigos fora da luz não aparecem na lista de alvos de arco ou magia.
 
 ### v2.1.1 — Itens, Arcos e Spawn (atual)
 
-**Elmo Espinhoso** (renomeado de Elmo da Fúria) — narração de cabeçada/investida ao atacar, mensagem de "espinhos quebrados" ao expirar.
+**Elmo da Fúria** — narração de cabeçada/investida ao atacar, mensagem de "chifres quebrados" ao expirar.
 
 **Pedra de Afiar refatorada** — o `+2` é acumulado no nome do item em equipados (`Espada Curta +2 → +4`), nunca em `arma['bonus']` diretamente, eliminando a dupla contagem. Dura 8 ataques. Aviso nos últimos 3. Restaura ao expirar. Não funciona em armas mágicas.
 
