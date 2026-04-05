@@ -1,4 +1,4 @@
-# O LIMIAR — ver. 2.0.0 ~~ Desenvolvido pelo Bandeirinha
+# O LIMIAR — ver. 2.2.0 ~~ Desenvolvido pelo Bandeirinha
 
 wizard = """
 ....:::.::....:!JYJJYJJJJJYYYJJJJJJY55555YY555555555YY?!!7?Y55YYYYYYYJJ???777!!~^^^^^^:.............
