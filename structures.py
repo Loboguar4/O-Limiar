@@ -1,4 +1,4 @@
-# O LIMIAR — ver. 2.0.0 ~~ Desenvolvido pelo Bandeirinha
+# O LIMIAR — ver. 2.2.0 ~~ Desenvolvido pelo Bandeirinha
 
 stairway = """        
           .!!7YYY5PPPP5555P55PGPPY~5P5P5BP~5PP5PPPGGGGBGY?YPGGJ!PGGGPPPPPPPPPPPGGGGGPGGBB~          
