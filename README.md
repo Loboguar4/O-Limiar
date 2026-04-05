@@ -37,7 +37,7 @@ Não há sistema de level up. A dificuldade escala com a profundidade. Cada run 
 |---|---|---|
 | **Guerreiro** | Bárbaro | Dano bruto, Fúria Berserker, resistência alta |
 | **Guerreiro** | Cavaleiro | Disciplina, Contra-Ataque passivo, Golpes Sequenciais |
-| **Mago** | Mago Azul | Suporte arcano, Toque de Cura, Míssil Mágico |
+| **Mago** | Mago Azul | Suporte arcano, Toque de Cura, poder elemental |
 | **Mago** | Mago Negro | Drenar Vida, Onda de Almas, necromancia |
 | **Ladino** | Ladrão | Furtividade, Evasão, recursos e oportunismo |
 | **Ladino** | Assassino | Golpe Sorrateiro, Veneno na Lâmina, críticos 19–20 |
