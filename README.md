@@ -1,4 +1,4 @@
-# O LIMIAR ~~ v2.1.1
+# O LIMIAR ~~ v2.2.0
 ### *Dungeon Crawl RPG de Terminal*
 
 > *"Ninguém jamais retornou."*
@@ -128,6 +128,7 @@ As bordas do mapa 4×4 são transponíveis — atravessá-las muda de sala ou re
 | Cajado de Gelo | Somente Magos; crítico paralisa 1t |
 | Orbe Mental de Vecna | +15% poder mágico total |
 | Cajado de Osso | +1 magia para Magos |
+| Cajado do Fogo Descendente | Dano elemental de fogo. Com Códice: desbloqueia Bola de Fogo |
 
 ### Itens de Flechas
 Flechas são contadas por **unidade** (0.05kg/unidade), aparecem no inventário como slot virtual, podem ser coletadas em quantidade parcial e recuperadas de inimigos atingidos.
@@ -147,6 +148,11 @@ Flechas são contadas por **unidade** (0.05kg/unidade), aparecem no inventário 
 | Lâmina Especular | Reflete 30% do dano físico recebido |
 | Corrente do Espectro | Ladino: 50% negar dano físico por round |
 | Coroa dos Condenados | +4 CA permanente; inimigos te percebem primeiro |
+| Botas do Caçador de Monstros | 30% resistir a veneno/maldição/paralisia; reduz duração |
+| Elmo do Caçador de Monstros | +2 CA permanente; 25% dissipar controle mágico |
+| Botas Encantadas | Somente Magos: +8% poder mágico total |
+| Códice dos Segredos Elementais | Desbloqueia Bola de Fogo, Relâmpago e Inverno Netuniano |
+| Chapéu Cósmico | 25% absorver ataques/magias para o vazio cósmico; +1 CA |
 
 ---
 
@@ -199,7 +205,35 @@ Inimigos fora da luz não aparecem na lista de alvos de arco ou magia.
 
 ## Notas de Atualização
 
-### v2.1.1 — Itens, Arcos e Spawn (atual)
+### v2.2.0 — Sistema de Magia e Novos Itens (atual)
+
+**Sistema de magia refatorado** — `_magias_disponiveis(alvo)` é a fonte única de verdade para combate e exploração. Menu dinâmico gerado por grimórios/cajados equipados. Verificação de range e LOS centralizada. Exclusividades aplicadas:
+- **Grimório das Almas** e **Grimório da Maldição** → exclusivo Mago Negro
+- **Toque de Cura** → exclusivo Mago Azul | **Drenar Vida** → exclusivo Mago Negro
+
+**Canal Vital (Mago Azul):** passivo padrão +2 HP/feitiço. Dom na sessão zero reforça para **+4 HP/feitiço**.
+
+**Novos itens mágicos:**
+- **Cajado do Fogo Descendente** — dano elemental de fogo em ataques. Com Códice: desbloqueia Bola de Fogo
+- **Códice dos Segredos Elementais** — Cajado do Fogo → Bola de Fogo (AoE + DoT); Cajado de Gelo → Inverno Netuniano (paralisa 3t); Manoplas → Relâmpago (choque DoT + atordoa)
+- **Chapéu Cósmico** — slot de elmo; 25% absorver ataques/magias para o vazio cósmico; +1 CA
+
+**Novos itens lategame (dificuldade 18+):**
+- **Botas do Caçador de Monstros** — 30% resistir completamente a veneno, maldição e paralisia; reduz duração
+- **Elmo do Caçador de Monstros** — +2 CA permanente; 25% dissipar efeitos de controle mágico
+- **Botas Encantadas** — exclusivo Magos; +8% poder mágico total
+
+**Slots exclusivos por categoria:** Botas (1 de 3 tipos), Elmo (1 de 3 tipos), Armadura (1 de 3 tipos). `_trocar_slot()` ignora itens quebrados.
+
+**Elmo da Fúria — ciclo completo:** durabilidade 3–5 ataques (não expira entre turnos). Investida Feroz usa bônus do elmo. Ao expirar: elmo destruído e removido da build.
+
+**Paralisia corrigida:** verificação centralizada no loop de combate — cobre todos os inimigos independente de como implementam `atacar()`. Decremento após o turno de ação.
+
+**Imunidades ao Orbe da Cegueira:** Serpente Abissal, Verme das Entranhas e Olho de Vecna agora imunes. Sacerdote Devorador: 25% de dissipar cegueira gastando o turno.
+
+**Correções de bugs:** Chapéu Cósmico duplicando na bolsa; Botas do Silêncio desaparecendo; Talismã Protetor expirando imediatamente; cancelar `0` na seleção de alvo conjurava magia; Grimório da Maldição não aparecia no menu.
+
+### v2.1.1 — Itens, Arcos e Spawn
 
 **Elmo da Fúria** — narração de cabeçada/investida ao atacar, mensagem de "chifres quebrados" ao expirar.
 

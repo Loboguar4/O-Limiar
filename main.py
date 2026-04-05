@@ -1,5 +1,5 @@
 """
-# O LIMIAR — ver. 2.1.1
+# O LIMIAR — ver. 2.2.0
 # Anteriormente: Masmorras Liminares
 
     "Atmosférico. Punitivo. Ancestral. No Limiar do Mundo."
@@ -9,6 +9,84 @@
 # Licensed under the GNU GPL v3.0 or later
 # Para apoiar: pixgg.com/bandeirinha
 
+# ─────────────────────────────────────────────────────────────────────
+# NOTAS DE ATUALIZAÇÃO v2.2.0 — SISTEMA DE MAGIA E NOVOS ITENS
+# ─────────────────────────────────────────────────────────────────────
+#
+# SISTEMA DE MAGIA — REFATORAÇÃO COMPLETA:
+#   Novo método central _magias_disponiveis(alvo) — fonte única de
+#   verdade para combate e exploração. Cada grimório/cajado contribui
+#   com sua magia automaticamente via flags. Menu dinâmico numerado,
+#   sem números hardcoded. Verificação de range e LOS centralizada em
+#   _verificar_prereqs_magia(alvo).
+#
+# EXCLUSIVIDADES POR SUBCLASSE:
+#   Grimório das Almas → exclusivo Mago Negro
+#   Grimório da Maldição → exclusivo Mago Negro (Maldição no menu)
+#   Toque de Cura → exclusivo Mago Azul
+#   Drenar Vida → exclusivo Mago Negro
+#
+# CANAL VITAL (Mago Azul):
+#   Passivo padrão (+2 HP/feitiço). Dom na sessão zero REFORÇA
+#   para +4 HP/feitiço (flag 998). Outras classes recebem efeito
+#   base ao escolher o dom.
+#
+# NOVOS ITENS MÁGICOS:
+#   Cajado do Fogo Descendente: arma Mago, dano elemental de fogo
+#     em ataques, DoT 2 turnos. Com Códice: desbloqueia Bola de Fogo.
+#   Códice dos Segredos Elementais: grimório elemental — desbloqueia
+#     magias com base nos cajados/manoplas equipados:
+#       Cajado do Fogo  → Bola de Fogo (AoE splash, DoT 3t, cooldown 6)
+#       Cajado de Gelo  → Inverno Netuniano (paralisa 3t, -3 CA)
+#       Manoplas        → Relâmpago (DoT choque 2t + atordoa 1t)
+#   Chapéu Cósmico: slot de elmo, 25% de absorver ataques/magias
+#     para o vazio cósmico. +1 CA.
+#
+# NOVOS ITENS DE CAÇADOR (lategame dif 18+):
+#   Botas do Caçador de Monstros: resistência passiva — 30% de
+#     resistir a veneno/maldição/paralisia; reduz duração.
+#   Elmo do Caçador de Monstros: +2 CA permanente; 25% de dissipar
+#     efeitos de controle mágico (paralisia, cegueira, maldição).
+#   Botas Encantadas: exclusivo Magos, +8% poder mágico total.
+#
+# SISTEMA DE SLOTS EXCLUSIVOS:
+#   Botas: Silêncio / Caçador / Encantadas — apenas 1 por build.
+#   Elmo:  Espinhoso / Caçador / Cósmico — apenas 1 por build.
+#   Armadura: Mithril / Couro / Veterano — apenas 1 por build.
+#   _trocar_slot() ignora itens quebrados (slot liberado para novo).
+#
+# ELMO DA FÚRIA — CICLO COMPLETO:
+#   Durabilidade 3–5 ataques (dict em efeitos_ativos, não int).
+#   Investida Feroz adiciona bônus do elmo ao dano.
+#   Ao expirar: elmo é DESTRUÍDO e removido da build.
+#   Crash ao reequipar quebrado: corrigido via parse seguro do bonus.
+#
+# PARALISIA — CORREÇÃO DE SISTEMA:
+#   Verificação centralizada no loop de combate (antes de atacar()),
+#   não dentro de cada atacar() de subclasse. Cobre todos os 15+
+#   inimigos. Decremento acontece APÓS o turno de ação, não antes.
+#   Atordoado tratado junto com paralisado.
+#
+# ORBE DA CEGUEIRA — IMUNIDADES:
+#   Serpente Abissal: sem pálpebras — detecta calor e vibração.
+#   Verme das Entranhas: sem olhos — percepção tátil/olfativa.
+#   Olho de Vecna: visão transcende o espectro físico.
+#   (Já imunes: Dracolich, Espectro, Arauto do Vazio)
+#   Sacerdote Devorador: 25% de dissipar cegueira magicamente,
+#   gastando o turno de ação.
+#
+# CORREÇÕES DE BUGS:
+#   Chapéu Cósmico: lógica de Botas do Silêncio estava colada ao
+#     handler — causava "cópia" na bolsa + pergunta de troca indevida.
+#   Botas do Silêncio: handler ausente causava desaparecimento do
+#     item ao usar. Recriado com _trocar_slot().
+#   Talismã Protetor: valor int=1 era decrementado por atualizar_efeitos
+#     antes do inimigo atacar. Mudado para string 'ativo'.
+#   Cancelar '0' ao mirar magia na exploração: int('0')-1=-1 = índice
+#     válido em Python, mirava o último inimigo. Corrigido.
+#   Grimório da Maldição: não aparecia no menu. Integrado em
+#     _magias_disponiveis() como as demais magias.
+#
 # ─────────────────────────────────────────────────────────────────────
 # NOTAS DE ATUALIZAÇÃO v2.1.1 — ITENS, ARCOS E SPAWN
 # ─────────────────────────────────────────────────────────────────────
@@ -243,9 +321,9 @@ def limpar_tela():
 
 # Capacidade de carga por classe (kg)
 CAPACIDADE_PESO = {
-    "Guerreiro": 22.0,
-    "Ladino":    12.0,
-    "Mago":       7.0,
+    "Guerreiro": 21.0,
+    "Ladino":    14.0,
+    "Mago":       8.0,
 }
 
 # Peso de cada item (kg) — correspondência por substring/nome exato
@@ -265,7 +343,7 @@ PESOS_ITENS = {
     'Flechas (10)':            0.3,
     'Machado Anão Flamejante': 3.5,
     'Manoplas do Trovão':      2.0,
-    'Cajado de Gelo':          2.2,
+    'Cajado de Gelo':          1.8,
     'Orbe Mental de Vecna':    0.6,
     'Adaga Envenenada':        0.7,
     # Armaduras / defensivos pesados
@@ -339,13 +417,21 @@ PESOS_ITENS = {
     'Rede de Caça':            0.8,
     'Tomo da Entropia':        2.0,
     'Cálice de Sangue Antigo': 0.4,
-    'Diário Perdido':          0.3,   # raro — salva o jogo e revela lore
+    # ── LATEGAME — Equipamentos do Caçador ───────────────────────────
+    'Botas do Caçador de Monstros': 1.5,
+    'Elmo do Caçador de Monstros':  2.5,
+    'Botas Encantadas':             0.8,
+    # ── NOVOS — Itens Mágicos ─────────────────────────────────────────
+    'Cajado do Fogo Descendente':   1.6,
+    'Códice dos Segredos Elementais': 1.8,
+    'Chapéu Cósmico':               0.5,
+    'Diário Perdido':               0.3,
 }
 
 DESCRICOES_ITENS = {
     'poção de cura':            "Restaura HP perdido. Simples, mas salva vidas.",
     'poção de força':           "Confere força brutal por 6 turnos.",
-    'poção de invisibilidade':  "Torna-o etéreo por 3 turnos. Cuidado com o Olho.",
+    'poção de invisibilidade':  "Torna-o etéreo por 3 turnos.",
     'antídoto':                 "Cura qualquer veneno imediatamente.",
     'chave':                    "Abre portas trancadas. Leve e valiosa.",
     'Espada Curta':             "Espada de aço comum. Bônus de ataque e dano.",
@@ -425,7 +511,12 @@ DESCRICOES_ITENS = {
     'Rede de Caça':             "Arremessada em combate: paralisa inimigo por 2 turnos e reduz CA em 4. Clássico de caçadores.",
     'Tomo da Entropia':         "Equipado: efeito aleatório por turno em combate. Pode salvar ou destruir.",
     'Cálice de Sangue Antigo':  "Cura 20 HP instantaneamente. Aplica Maldição em você por 3 turnos.",
-    'Diário Perdido':           "Leitura imediata. Salva o progresso e revela o destino de quem veio antes.",
+    'Botas do Caçador de Monstros': "Reforçadas com couro de criatura das profundezas. Resistência passiva a maldição, veneno e paralisia.",
+    'Elmo do Caçador de Monstros':  "+2 CA permanente. Resistência a magias de controle. O visor foi arranhado por garras que não existem mais.",
+    'Botas Encantadas':             "Somente Magos. Calçados em tecidos finos. Sintoniza e absorve a energia do solo. +8% de poder mágico total.",
+    'Cajado do Fogo Descendente':   "Só Magos. Chamas solares condensadas. Dano elemental de fogo em ataques. Com Códice: desbloqueia Bola de Fogo.",
+    'Códice dos Segredos Elementais': "Grimório elemental. Desbloqueia magias de acordo com cajados/manoplas equipados: Bola de Fogo, Relâmpago, Inverno Netuniano.",
+    'Chapéu Cósmico':               "Chapéu pontudo e peculiar. Seu tecido parece uma janela para um céu estrelado. 25% de desviar ataques e magias para o vazio cósmico.",
 }
 
 
@@ -547,10 +638,11 @@ class Personagem:
         total = rolagem + total_bonus
 
         # Elmo da Fúria — anunciar cabeçada antes da rolagem
-        if 'elmo_furia' in self.efeitos_ativos:
+        elmo_ativo = isinstance(self.efeitos_ativos.get('elmo_furia'), dict)
+        if elmo_ativo:
             msgs_elmo = [
                 f"🪖 Você investe com o Elmo da Fúria contra {alvo.nome}!",
-                f"🪖 Cabeçada brutal! Os chifres do elmo perfuram {alvo.nome}!",
+                f"🪖 Cabeçada brutal! Os espinhos do elmo miram {alvo.nome}!",
                 f"🪖 Investida agressiva — você usa a cabeça literalmente!",
             ]
             print(random.choice(msgs_elmo))
@@ -572,8 +664,8 @@ class Personagem:
             print(f"{critico_label}! {self.nome} causa {dano} de dano em {alvo.nome}!")
             # Cajado de Gelo — paralisa no crítico físico
             if self.arma and 'Cajado de Gelo' in self.arma.get('nome', ''):
-                alvo.efeitos_ativos['paralisado'] = {'dano': 0, 'turnos': 1}
-                print(f"🧊 O frio do Cajado penetra até os ossos — {alvo.nome} paralisa por 1 turno!")
+                alvo.efeitos_ativos['paralisado'] = {'dano': 0, 'turnos': 2}
+                print(f"🧊 O frio do Cajado penetra até os ossos — {alvo.nome} paralisa por 2 turno!")
             # Assassino: aplicar veneno automaticamente no crítico
             if e_assassino and not getattr(alvo, 'imune_veneno', False):
                 alvo.efeitos_ativos['veneno'] = {'dano': 3, 'turnos': 3}
@@ -610,6 +702,18 @@ class Personagem:
                 self.atualizar_atributos_equipamento()
                 del self.efeitos_ativos['afiado']
                 print(f"🗡️ O fio da lâmina se desgastou. Arma voltou ao estado original.")
+
+        # ── Decrementar durabilidade do Elmo da Fúria ─────────────────
+        if isinstance(self.efeitos_ativos.get('elmo_furia'), dict):
+            ef = self.efeitos_ativos['elmo_furia']
+            ef['ataques'] -= 1
+            if ef['ataques'] == 1:
+                print("🪖 Os espinhos do Elmo estão cedendo... (último ataque!)")
+            if ef['ataques'] <= 0:
+                self.bonus_temporario = 0
+                self.atualizar_atributos_equipamento()
+                del self.efeitos_ativos['elmo_furia']
+                print("🪖 Os espinhos do Elmo se partiram no impacto! Bônus esgotado.")
 
         # ============================
         # ⚡🔥🐍 EFEITOS ESPECIAIS DE ITENS
@@ -712,6 +816,16 @@ class Personagem:
                     print(f"🩸 Machado do Sangramento: {alvo.nome} sangrará {dano_s} HP/turno por {turnos_s} turnos!")
                 else:
                     print(f"🛡️  {alvo.nome} não sangra — imune!")
+
+            # ── Cajado do Fogo Descendente ────────────────────────────
+            elif self.arma['nome'] == 'Cajado do Fogo Descendente':
+                porcentagem = random.randint(12, 25) / 100
+                crit_elemental = random.random() < 0.08
+                dano_extra = int(dano * porcentagem * (2 if crit_elemental else 1))
+                alvo.hp -= dano_extra
+                print(f"🔥 Chama Solar: +{dano_extra} ({int(porcentagem*100)}%){' [CRÍTICO ELEMENTAL!]' if crit_elemental else ''}!")
+                alvo.efeitos_ativos['fogo'] = {'dano': dano_extra, 'turnos': 2}
+                print(f"🔥 {alvo.nome} queimará {dano_extra} por 2 turno(s)!")
 
             # ── Espada Fantasma ───────────────────────────────────────
             elif self.arma['nome'] == 'Espada Fantasma':
@@ -844,6 +958,40 @@ class Personagem:
     def processar_efeitos(self):
         """Processa DoTs e buffs ativos — incluindo veneno — no início do turno."""
         remover = []
+
+        # ── Botas do Caçador de Monstros: resistência passiva ─────────
+        tem_botas_cacador = any('Botas do Caçador de Monstros' in eq for eq in self.equipados)
+        if tem_botas_cacador:
+            efeitos_controlados = {'veneno', 'veneno_duplo', 'maldicao', 'paralisado',
+                                   'cegueira', 'atordoado'}
+            for ef in list(self.efeitos_ativos):
+                if ef in efeitos_controlados:
+                    dados = self.efeitos_ativos[ef]
+                    # 30% de resistir completamente ao efeito no início do turno
+                    if random.random() < 0.30:
+                        remover.append(ef)
+                        print(f"🥾 Botas do Caçador resistem — {ef} dissipado!")
+                    # Reduz duração de efeitos dict em 1 turno extra
+                    elif isinstance(dados, dict) and 'turnos' in dados and dados['turnos'] > 1:
+                        dados['turnos'] -= 1
+            for ef in remover:
+                if ef in self.efeitos_ativos:
+                    del self.efeitos_ativos[ef]
+            remover = []
+
+        # ── Elmo do Caçador de Monstros: resistência a controle mágico ─
+        tem_elmo_cacador = any('Elmo do Caçador de Monstros' in eq for eq in self.equipados)
+        if tem_elmo_cacador:
+            efeitos_magicos = {'paralisado', 'cegueira', 'atordoado', 'maldicao'}
+            for ef in list(self.efeitos_ativos):
+                if ef in efeitos_magicos and random.random() < 0.25:
+                    remover.append(ef)
+                    print(f"🪖 Elmo do Caçador resiste — {ef} dissipado!")
+            for ef in remover:
+                if ef in self.efeitos_ativos:
+                    del self.efeitos_ativos[ef]
+            remover = []
+
         for efeito, dados in list(self.efeitos_ativos.items()):
             if isinstance(dados, dict) and 'dano' in dados:
                 dano = dados['dano']
@@ -898,6 +1046,82 @@ class Personagem:
                     self.ac += pen_ca
                     print(f"🔓 {self.nome} se liberta da paralisia! CA restaurada (+{pen_ca}).")
 
+    # ══════════════════════════════════════════════════════════════
+    # SISTEMA DE MAGIA — combate e exploração
+    # ══════════════════════════════════════════════════════════════
+
+    def _grimorio_equipado(self, nome):
+        return any(nome in eq for eq in self.equipados)
+
+    def _magias_disponiveis(self, alvo=None):
+        """Retorna lista de (label, fn) de acordo com subclasse e grimórios equipados."""
+        sub = getattr(self, 'subclasse', None)
+        tem_almas    = self._grimorio_equipado('Grimório das Almas')
+        tem_colapso  = self._grimorio_equipado('Grimório do Colapso')
+        tem_maldicao = self._grimorio_equipado('Grimório da Maldição') and sub == 'Mago Negro'
+        tem_portal   = self._grimorio_equipado('Grimório Portal')
+        tem_codice   = self._grimorio_equipado('Códice dos Segredos Elementais')
+
+        # Flags elementais — Códice ativa magias com base nos equipamentos
+        tem_cajado_fogo = (self.arma and 'Cajado do Fogo Descendente' in self.arma.get('nome', '')) or \
+                          self._grimorio_equipado('Cajado do Fogo Descendente')
+        tem_cajado_gelo = (self.arma and 'Cajado de Gelo' in self.arma.get('nome', '')) or \
+                          self._grimorio_equipado('Cajado de Gelo')
+        tem_manoplas    = any('Manoplas do Trovão' in eq for eq in self.equipados) or \
+                          (self.arma and 'Manoplas do Trovão' in self.arma.get('nome', ''))
+
+        magias = []
+        magias.append(('✨ Míssil Mágico      (range 3, 1 alvo)',
+                        lambda a=alvo: self._usar_missil_magico(a)))
+        magias.append(('💥 Explosão Arcana    (range 2, todos visíveis)',
+                        lambda a=alvo: self._usar_explosao_arcana(a)))
+
+        if tem_almas:
+            magias.append(('👻 Onda de Almas      (range 3, +dano necrótico)',
+                           lambda a=alvo: self._usar_onda_almas(a)))
+        if tem_colapso:
+            magias.append(('🌀 Colapso            (range 3, paralisa 2 turnos)',
+                           lambda a=alvo: self._usar_colapso(a)))
+        if sub == 'Mago Azul':
+            magias.append(('💙 Toque de Cura      (cura própria HP, cooldown 3t)',
+                           lambda: self._usar_toque_cura()))
+        if sub == 'Mago Negro':
+            magias.append(('🩸 Drenar Vida        (range 3, rouba HP)',
+                           lambda a=alvo: self._usar_drenar_vida(a)))
+        if tem_maldicao:
+            magias.append(('☠️  Maldição           (range 3, dobra dano recebido)',
+                           lambda a=alvo: self._usar_maldicao(a)))
+        # ── Códice dos Segredos Elementais ────────────────────────────
+        if tem_codice and tem_cajado_fogo:
+            magias.append(('🔥 Bola de Fogo        (range 3, alto dano + AoE fogo)',
+                           lambda a=alvo: self._usar_bola_de_fogo(a)))
+        if tem_codice and tem_cajado_gelo:
+            magias.append(('🌊 Inverno Netuniano   (range 3, gelo + paralisia longa)',
+                           lambda a=alvo: self._usar_inverno_netuniano(a)))
+        if tem_codice and tem_manoplas:
+            magias.append(('⚡ Relâmpago           (range 3, choque + atordoa)',
+                           lambda a=alvo: self._usar_relampago(a)))
+        if tem_portal:
+            magias.append(('🌀 Portal de Travessia (atravessa paredes)',
+                           lambda a=alvo: self._usar_portal(a)))
+        return magias
+
+    def _verificar_prereqs_magia(self, alvo):
+        """Verifica range e LOS. Retorna True se ok."""
+        if alvo is None:
+            return True
+        dist = abs(alvo.pos[0] - self.pos[0]) + abs(alvo.pos[1] - self.pos[1])
+        if dist > 3:
+            print(f"❌ {alvo.nome} está fora do alcance! (dist {dist}, max 3)")
+            time.sleep(1); return False
+        mapa_ref = getattr(self, '_mapa_ref', None)
+        if mapa_ref and hasattr(mapa_ref, 'tem_linha_de_visao'):
+            jx, jy = self.pos; ax, ay = alvo.pos
+            if not mapa_ref.tem_linha_de_visao(jx, jy, ax, ay):
+                print("❌ Uma parede bloqueia a linha de visão! Magia dissipada.")
+                time.sleep(1.5); return False
+        return True
+
     def usar_magia(self, alvo, mapa_atual=None):
         if self.classe != "Mago":
             print("❌ Apenas magos podem lançar magias!")
@@ -905,147 +1129,221 @@ class Personagem:
         if self.cooldown_magia > 0:
             print(f"❌ Magia em recarga! ({self.cooldown_magia} turnos restantes)")
             return False
+        if mapa_atual:
+            self._mapa_ref = mapa_atual
 
-        dist = abs(alvo.pos[0] - self.pos[0]) + abs(alvo.pos[1] - self.pos[1])
+        magias = self._magias_disponiveis(alvo)
+        if len(magias) == 1:
+            return magias[0][1]()
 
-        # ── Spells de Subclasse ───────────────────────────────────────
-        subclasse = getattr(self, 'subclasse', None)
-        tem_portal  = any('Grimório Portal' in eq for eq in self.equipados)
-        tem_colapso = any('Grimório do Colapso' in eq for eq in self.equipados)
-        tem_almas   = any('Grimório das Almas' in eq for eq in self.equipados)
-
-        # ── Grimório das Almas — Onda de Almas AoE ──────────────────
-        if tem_almas:
-            print("📖 O Grimório das Almas pulsa! Escolha:")
-            print("  1 - Míssil Mágico")
-            print("  2 - Onda de Almas")
-            if tem_portal:
-                print("  3 - Portal de Travessia (atravessa parede)")
-            if tem_colapso:
-                print("  4 - Colapso (paralisa inimigo 2 turnos)")
-            if subclasse == 'Mago Azul':
-                print("  5 - Toque de Cura (cura HP, cooldown 3t)")
-            elif subclasse == 'Mago Negro':
-                print("  5 - Drenar Vida (rouba HP do inimigo, cooldown 4t)")
-            sub = input(">> ").strip()
-            if sub == '2':
-                print("👻 Você libera uma onda de almas aprisionadas!")
-                poder_magico = self.calcular_poder_magico_total()
-                dano_total = poder_magico + rolar_dado(6) + 4
-                alvo.hp -= dano_total
-                print(f"💀 Onda de Almas causa {dano_total} de dano mágico necrótico!")
-                self.cooldown_magia = 4
-                return True
-            if sub == '3' and tem_portal:
-                return self._usar_portal(mapa_atual)
-            if sub == '4' and tem_colapso:
-                return self._usar_colapso(alvo)
-            if sub == '5':
-                if subclasse == 'Mago Azul':
-                    return self._usar_toque_cura()
-                elif subclasse == 'Mago Negro':
-                    return self._usar_drenar_vida(alvo)
-        else:
-            # Menu simplificado
-            opcoes_extra = []
-            if tem_portal:
-                opcoes_extra.append(('Portal de Travessia', lambda: self._usar_portal(mapa_atual)))
-            if tem_colapso:
-                opcoes_extra.append(('Colapso (paralisa 2t)', lambda: self._usar_colapso(alvo)))
-            if subclasse == 'Mago Azul':
-                opcoes_extra.append(('Toque de Cura', lambda: self._usar_toque_cura()))
-            elif subclasse == 'Mago Negro':
-                opcoes_extra.append(('Drenar Vida', lambda: self._usar_drenar_vida(alvo)))
-            if opcoes_extra:
-                print("✨ Escolha:")
-                print("  1 - Míssil Mágico")
-                for i, (nm, _) in enumerate(opcoes_extra, 2):
-                    print(f"  {i} - {nm}")
-                sub = input(">> ").strip()
-                try:
-                    idx_e = int(sub) - 2
-                    if 0 <= idx_e < len(opcoes_extra):
-                        return opcoes_extra[idx_e][1]()
-                except (ValueError, IndexError):
-                    pass
-
-        if dist > 3:
-            print("❌ Alvo fora do alcance!")
+        print("\n📖 Escolha a magia:")
+        for i, (label, _) in enumerate(magias, 1):
+            print(f"  {i} — {label}")
+        print("  0 — Cancelar")
+        sub = input(">> ").strip()
+        if sub == "0" or sub == "":
             return False
+        try:
+            idx = int(sub) - 1
+            if 0 <= idx < len(magias):
+                return magias[idx][1]()
+        except (ValueError, IndexError):
+            pass
+        return False
 
-        # ── Linha de visão — parede bloqueia magia ────────────────────
-        mapa_ref = getattr(self, '_mapa_ref', None)
-        if mapa_ref and hasattr(mapa_ref, 'tem_linha_de_visao'):
-            jx, jy = self.pos
-            ax, ay = alvo.pos
-            if not mapa_ref.tem_linha_de_visao(jx, jy, ax, ay):
-                print("❌ Uma parede bloqueia a linha de visão! Magia dissipada.")
-                return False
+    # ── Implementações individuais ────────────────────────────────
 
-        print("✨ Míssil Mágico lançado!")
-        print(spell)
-
-        poder_magico = self.calcular_poder_magico_total()
-        print(f"🔮 Poder mágico total: {poder_magico}")
-
+    def _usar_missil_magico(self, alvo):
+        if alvo is None:
+            print("❌ Selecione um alvo para o Míssil Mágico.")
+            return False
+        if not self._verificar_prereqs_magia(alvo):
+            return False
+        poder = self.calcular_poder_magico_total()
         rolagem = rolar_dado(4) + 3
-        print(f"🎲 Rolagem do Míssil Mágico: 1d4 + 3 = {rolagem}")
-
-        # Cajado de Gelo — 20% de acerto crítico mágico (dano dobrado + paralisia 1 turno)
-        tem_cajado_gelo = self.arma and 'Cajado de Gelo' in self.arma.get('nome', '')
-        critico_gelo = tem_cajado_gelo and random.random() < 0.20
-
-        dano_total = poder_magico + rolagem
-        if critico_gelo:
-            dano_total = dano_total * 2
-
-        alvo.hp -= dano_total
-
-        # Resistência mágica (Gárgula, Dracolich, Capa Encantada)
-        res_inimigo = getattr(alvo, 'resistencia_magica', 0.0)
-        if res_inimigo > 0 and random.random() < res_inimigo:
-            revertido = max(1, dano_total // 2)
-            alvo.hp += revertido
-            print(f"🛡️ {alvo.nome} resiste parcialmente à magia! Dano reduzido em {revertido}.")
-
-        if critico_gelo:
-            print(f"🧊 ACERTO CRÍTICO GLACIAL! {dano_total} de dano congelante em {alvo.nome}!")
-            alvo.efeitos_ativos['paralisado'] = {'dano': 0, 'turnos': 1}
-            print(f"   O frio extremo paralisa {alvo.nome} por 1 turno!")
+        print(f"✨ Míssil Mágico lançado!")
+        print(spell)
+        tem_cajado = self.arma and "Cajado de Gelo" in self.arma.get("nome", "")
+        critico = tem_cajado and random.random() < 0.20
+        dano = (poder + rolagem) * (2 if critico else 1)
+        res = getattr(alvo, "resistencia_magica", 0.0)
+        if res > 0 and random.random() < res:
+            dano = max(1, dano // 2)
+            print(f"🛡️ {alvo.nome} resiste! Dano reduzido: {dano}.")
+        alvo.hp -= dano
+        if critico:
+            print(f"🧊 CRÍTICO GLACIAL! {dano} dano — {alvo.nome} paralisa por 2 turnos!")
+            alvo.efeitos_ativos["paralisado"] = {"dano": 0, "turnos": 2}
         else:
-            print(f"💥 Míssil Mágico causa {dano_total} de dano mágico em {alvo.nome}!")
-
-        # Canal Vital — cura ao lançar magia
-        if 'canal_vital' in self.efeitos_ativos:
-            self.hp = min(self.hp + 2, self.hp_max)
-            print(f"💖 Canal Vital: +2 HP recuperados.")
-
+            print(f"💥 Míssil Mágico: {dano} de dano em {alvo.nome}!")
+        if "canal_vital" in self.efeitos_ativos:
+            cv_cura = 4 if self.efeitos_ativos["canal_vital"] == 998 else 2
+            self.hp = min(self.hp + cv_cura, self.hp_max)
+            print(f"💖 Canal Vital: +{cv_cura} HP.")
         self.cooldown_magia = 5
         return True
 
+    def _usar_explosao_arcana(self, alvo_ref=None):
+        mapa_ref = getattr(self, "_mapa_ref", None)
+        if mapa_ref is None:
+            print("❌ Sem referência de mapa para Explosão Arcana.")
+            return False
+        alvos = [
+            i for i in mapa_ref.inimigos
+            if i.esta_vivo()
+            and abs(self.pos[0]-i.pos[0]) + abs(self.pos[1]-i.pos[1]) <= 2
+            and mapa_ref.tem_linha_de_visao(self.pos[0], self.pos[1], i.pos[0], i.pos[1])
+        ]
+        if not alvos:
+            print("💥 Nenhum inimigo em range 2 para Explosão Arcana.")
+            time.sleep(1); return False
+        poder = self.calcular_poder_magico_total()
+        dano_base = poder + rolar_dado(8) + 2
+        print(f"\n💥 EXPLOSÃO ARCANA — atinge {len(alvos)} inimigo(s)!")
+        time.sleep(0.5)
+        for a in alvos:
+            d = max(1, dano_base - random.randint(0, 3))
+            res = getattr(a, "resistencia_magica", 0.0)
+            if res > 0 and random.random() < res:
+                d = max(1, d // 2)
+                print(f"   🛡️ {a.nome} resiste: {d} dano.")
+            else:
+                print(f"   🔥 {a.nome}: {d} dano!")
+            a.hp -= d; a.alertado = True
+        self.cooldown_magia = 6
+        return True
+
+    def _usar_onda_almas(self, alvo):
+        if alvo is None:
+            print("❌ Selecione um alvo para Onda de Almas.")
+            return False
+        if not self._verificar_prereqs_magia(alvo):
+            return False
+        poder = self.calcular_poder_magico_total()
+        dano = poder + rolar_dado(6) + 4
+        alvo.hp -= dano
+        print(f"👻 ONDA DE ALMAS! {dano} de dano necrótico em {alvo.nome}!")
+        self.cooldown_magia = 4
+        return True
+
     def _usar_toque_cura(self):
-        """Mago Azul — Toque de Cura: cura HP, cooldown 3 turnos."""
         poder = self.calcular_poder_magico_total()
         cura = 10 + poder // 2 + rolar_dado(6)
         self.hp = min(self.hp + cura, self.hp_max)
-        print(f"💙 TOQUE DE CURA! A luz elemental restaura {cura} HP!")
+        print(f"💙 TOQUE DE CURA! +{cura} HP restaurados!")
         time.sleep(1)
         self.cooldown_magia = 3
         return True
 
     def _usar_drenar_vida(self, alvo):
-        """Mago Negro — Drenar Vida: rouba HP do inimigo, cooldown 4 turnos."""
+        if alvo is None:
+            print("❌ Selecione um alvo para Drenar Vida.")
+            return False
+        if not self._verificar_prereqs_magia(alvo):
+            return False
         poder = self.calcular_poder_magico_total()
         dano = poder + rolar_dado(8) + 2
         alvo.hp -= dano
         roubado = dano // 2
         self.hp = min(self.hp + roubado, self.hp_max)
-        alvo.efeitos_ativos['maldicao'] = alvo.efeitos_ativos.get('maldicao', 0) + 1
-        print(f"💀 DRENAR VIDA! {dano} de dano necrótico em {alvo.nome}!")
-        print(f"   🩸 Você absorve {roubado} HP e aplica Maldição (+1 turno)!")
+        print(f"💀 DRENAR VIDA! {dano} de dano necrótico em {alvo.nome} — +{roubado} HP!")
         time.sleep(1)
         self.cooldown_magia = 4
         return True
+
+    def _usar_maldicao(self, alvo):
+        if alvo is None:
+            print("❌ Selecione um alvo para Maldição.")
+            return False
+        if not self._verificar_prereqs_magia(alvo):
+            return False
+        raw = next((eq for eq in self.equipados if "Grimório da Maldição" in eq), "")
+        bonus = int(raw.split("+")[1].split()[0]) if "+" in raw else 0
+        turnos = max(3, 3 + bonus // 2)
+        alvo.efeitos_ativos["maldicao"] = turnos
+        print(f"☠️  MALDIÇÃO! Todo dano recebido por {alvo.nome} será DOBRADO por {turnos} turnos!")
+        time.sleep(1)
+        self.cooldown_magia = 5
+        return True
+
+    def _usar_colapso(self, alvo):
+        if alvo is None:
+            print("❌ Selecione um alvo para Colapso.")
+            return False
+        if not self._verificar_prereqs_magia(alvo):
+            return False
+        print("📖 O Grimório do Colapso pulsa com padrões que não deveriam existir...")
+        time.sleep(1)
+        poder = self.calcular_poder_magico_total()
+        dano = poder + rolar_dado(6) + 2
+        alvo.hp -= dano
+        alvo.efeitos_ativos["paralisado"] = {"dano": 0, "turnos": 2}
+        alvo.efeitos_ativos["colapso_ca"] = 6
+        alvo.ac = max(1, alvo.ac - 6)
+        print(f"   🌀 COLAPSO! {dano} dano em {alvo.nome} — PARALISADO 2 turnos! (-6 CA)")
+        if "canal_vital" in self.efeitos_ativos:
+            cv_cura = 4 if self.efeitos_ativos["canal_vital"] == 998 else 2
+            self.hp = min(self.hp + cv_cura, self.hp_max)
+            print(f"💖 Canal Vital: +{cv_cura} HP.")
+        time.sleep(1.5)
+        self.cooldown_magia = 5
+        return True
+
+    def _usar_bola_de_fogo(self, alvo):
+        """Códice + Cajado do Fogo — alto dano, AoE fogo, cooldown 6."""
+        if alvo is None:
+            print("❌ Selecione um alvo para Bola de Fogo."); return False
+        if not self._verificar_prereqs_magia(alvo): return False
+        poder = self.calcular_poder_magico_total()
+        dano_central = poder + rolar_dado(10) + 5
+        alvo.hp -= dano_central
+        alvo.efeitos_ativos['fogo'] = {'dano': poder // 3 + 2, 'turnos': 3}
+        print(f"🔥 BOLA DE FOGO! {dano_central} de dano explosivo em {alvo.nome}!")
+        print(f"   🔥 {alvo.nome} queimará {poder // 3 + 2} HP/turno por 3 turnos!")
+        # Splash em inimigos adjacentes
+        mapa_ref = getattr(self, '_mapa_ref', None)
+        if mapa_ref:
+            for ini in mapa_ref.inimigos:
+                if ini is alvo or not ini.esta_vivo(): continue
+                dist = abs(ini.pos[0]-alvo.pos[0]) + abs(ini.pos[1]-alvo.pos[1])
+                if dist <= 1:
+                    splash = max(1, dano_central // 3)
+                    ini.hp -= splash
+                    ini.efeitos_ativos['fogo'] = {'dano': 2, 'turnos': 2}
+                    print(f"   🔥 Respingo de fogo em {ini.nome}: {splash} dano!")
+        self.cooldown_magia = 6
+        return True
+
+    def _usar_inverno_netuniano(self, alvo):
+        """Códice + Cajado de Gelo — gelo + paralisia prolongada."""
+        if alvo is None:
+            print("❌ Selecione um alvo para Inverno Netuniano."); return False
+        if not self._verificar_prereqs_magia(alvo): return False
+        poder = self.calcular_poder_magico_total()
+        dano = poder + rolar_dado(8) + 3
+        alvo.hp -= dano
+        alvo.efeitos_ativos['paralisado'] = {'dano': 0, 'turnos': 3}
+        alvo.ac = max(1, alvo.ac - 3)
+        print(f"🌊 INVERNO NETUNIANO! {dano} de dano glacial em {alvo.nome}!")
+        print(f"   🧊 {alvo.nome} congela — paralisado por 3 turnos! (-3 CA)")
+        self.cooldown_magia = 5
+        return True
+
+    def _usar_relampago(self, alvo):
+        """Códice + Manoplas do Trovão — choque + atordoamento."""
+        if alvo is None:
+            print("❌ Selecione um alvo para Relâmpago."); return False
+        if not self._verificar_prereqs_magia(alvo): return False
+        poder = self.calcular_poder_magico_total()
+        dano = poder + rolar_dado(8) + 4
+        alvo.hp -= dano
+        alvo.efeitos_ativos['choque'] = {'dano': dano // 4, 'turnos': 2}
+        alvo.efeitos_ativos['atordoado'] = {'dano': 0, 'turnos': 1}
+        print(f"⚡ RELÂMPAGO! {dano} de dano elétrico em {alvo.nome}!")
+        print(f"   ⚡ Choque contínuo ({dano//4}/turno por 2t) + atordoado 1 turno!")
+        self.cooldown_magia = 5
+        return True
+
 
     def _usar_portal(self, mapa_atual):
         """
@@ -1134,8 +1432,9 @@ class Personagem:
         # Olho Necromântico — ganho quando inimigo for morto (verificado em _loot_inimigo)
         # Canal Vital
         if 'canal_vital' in self.efeitos_ativos:
-            self.hp = min(self.hp + 2, self.hp_max)
-            print(f"💖 Canal Vital: +2 HP.")
+            cv_cura = 4 if self.efeitos_ativos['canal_vital'] == 998 else 2
+            self.hp = min(self.hp + cv_cura, self.hp_max)
+            print(f"💖 Canal Vital: +{cv_cura} HP.")
         time.sleep(1.5)
         return True
 
@@ -1440,6 +1739,9 @@ class Personagem:
             _coletar_flechas(self, qtd_item)
 
         elif item.startswith('Armadura de Mithril'):
+            SLOT_ARMADURA = ['Armadura de Mithril', 'Armadura de Couro', 'Armadura do Veterano']
+            if not self._trocar_slot(SLOT_ARMADURA, item, 'Armadura'):
+                return
             self.gerenciar_equipamento(item)
             print(f"🛡️ Armadura de Mithril equipada!")
 
@@ -1449,23 +1751,147 @@ class Personagem:
             self.gerenciar_equipamento(item)
             print(f"🔥 Machado Flamejante equipado! +{bonus+2} ataque, +{bonus+2} dano + dano de fogo.")
 
-        elif item.startswith('Elmo da Fúria'):
-            bonus = int(item.split('+')[1])
+        elif item.startswith('Elmo da Fúria') or item.startswith('Elmo Espinhoso'):
+            SLOT_ELMO = ['Elmo Espinhoso', 'Elmo da Fúria', 'Elmo do Caçador de Monstros']
+            if not self._trocar_slot(SLOT_ELMO, item, 'Elmo'):
+                return
+            bonus = int(item.split('+')[1]) if '+' in item else 1
+            dur = random.randint(3, 5)   # durabilidade: 3–5 ataques
             self.bonus_temporario = bonus
             self.ac -= 1
-            self.efeitos_ativos['elmo_furia'] = 1   # dura 1 ataque, expira com mensagem
+            # Usar dict para durabilidade — não decrementado por atualizar_efeitos (sem chave 'turnos')
+            self.efeitos_ativos['elmo_furia'] = {'bonus': bonus, 'ataques': dur}
             self.gerenciar_equipamento(item)
             print("🪖 Você veste o Elmo com um clique metálico...")
             time.sleep(0.8)
-            print(f"   ⚔️  +{bonus} no próximo ataque com cabeçada ou investida  |  -1 CA")
+            print(f"   Os espinhos arranham sua têmpora. Você sente o instinto de investir.")
+            time.sleep(0.4)
+            print(f"   ⚔️  +{bonus} ataque/dano por {dur} ataques  |  -1 CA")
+
+        elif item.startswith('Cajado do Fogo Descendente'):
+            bonus = int(item.split('+')[1]) if '+' in item else 0
+            if self.classe == 'Mago':
+                self.arma = {'nome': 'Cajado do Fogo Descendente', 'bonus': bonus + 2, 'dano': bonus + 2}
+                self.gerenciar_equipamento(item)
+                tem_codice = self._grimorio_equipado('Códice dos Segredos Elementais')
+                print(f"🔥 Cajado do Fogo Descendente equipado! +{bonus+2} ataque/dano.")
+                print("   Ataques básicos carregam chamas solares — dano de fogo passivo.")
+                if tem_codice:
+                    print("   🔥 Bola de Fogo desbloqueada via Códice!")
+                time.sleep(1.5)
+            else:
+                print("❌ Apenas magos dominam o fogo descendente.")
+                self.inventario.append(item)
+
+        elif item.startswith('Códice dos Segredos Elementais'):
+            if self.classe == 'Mago':
+                self.gerenciar_equipamento(item)
+                print("📕 CÓDICE DOS SEGREDOS ELEMENTAIS aberto...")
+                time.sleep(0.8)
+                print("   Magias elementais disponíveis com base nos seus cajados/manoplas:")
+                if self._grimorio_equipado('Cajado do Fogo Descendente'):
+                    print("   🔥 Bola de Fogo — desbloqueada!")
+                if self._grimorio_equipado('Cajado de Gelo') or (self.arma and 'Cajado de Gelo' in self.arma.get('nome','')):
+                    print("   🌊 Inverno Netuniano — desbloqueado!")
+                if any('Manoplas do Trovão' in eq for eq in self.equipados):
+                    print("   ⚡ Relâmpago — desbloqueado!")
+                if not any([self._grimorio_equipado('Cajado do Fogo Descendente'),
+                             self._grimorio_equipado('Cajado de Gelo'),
+                             any('Manoplas' in eq for eq in self.equipados)]):
+                    print("   (Equipe cajados ou manoplas elementais para desbloquear magias.)")
+                time.sleep(2)
+            else:
+                print("❌ Os segredos elementais resistem a qualquer não-Mago.")
+                self.inventario.append(item)
+
+        elif item == 'Chapéu Cósmico':
+            SLOT_ELMO = ['Elmo Espinhoso', 'Elmo da Fúria', 'Elmo do Caçador de Monstros', 'Chapéu Cósmico']
+            if not self._trocar_slot(SLOT_ELMO, item, 'Chapéu/Elmo'):
+                return
+            self.gerenciar_equipamento(item)
+            self.atualizar_atributos_equipamento()
+            print("🌌 Chapéu Cósmico vestido...")
+            time.sleep(0.8)
+            print("   O tecido parece uma janela para um céu sem fim.")
+            time.sleep(0.5)
+            print("   • 25% de desviar qualquer ataque ou magia para o vazio cósmico.")
+            print("   • +1 CA.")
+            time.sleep(1.5)
 
         elif item == 'Botas do Silêncio':
+            botas_slot = ['Botas do Silêncio', 'Botas do Caçador de Monstros', 'Botas Encantadas']
+            if not self._trocar_slot(botas_slot, item, 'Botas'):
+                return
             self.gerenciar_equipamento(item)
             print("👟 Botas do Silêncio equipadas!")
             time.sleep(0.5)
             print("   • Inimigos só te detectam a ≤2 tiles de distância.")
             print("   • 60% de passar despercebido ao pisar na mesma célula.")
             print("   • +15% de chance de fuga em combate.")
+            time.sleep(1.5)
+
+        elif item == 'Botas do Caçador de Monstros':
+            botas_slot = ['Botas do Silêncio', 'Botas do Caçador de Monstros', 'Botas Encantadas']
+            bota_atual = next((eq for eq in self.equipados
+                               if any(b in eq for b in botas_slot)), None)
+            if bota_atual:
+                print(f"🥾 Você já usa {bota_atual}.")
+                resp = input(f"   Trocar por Botas do Caçador? (s/n): ").strip().lower()
+                if resp != 's':
+                    self.inventario.append(item)
+                    return
+                self.equipados.remove(bota_atual)
+                self.inventario.append(bota_atual)
+                print(f"   ↩️  {bota_atual} devolvida à bolsa.")
+            self.gerenciar_equipamento(item)
+            print("🥾 Botas do Caçador de Monstros calçadas...")
+            time.sleep(0.8)
+            print("   O couro rangeu. Você sente uma resistência estranha subindo pelas solas.")
+            time.sleep(0.5)
+            print("   • Resistência passiva: reduz duração de veneno, maldição e paralisia.")
+            print("   • 30% de resistir completamente a efeitos de controle.")
+            time.sleep(1.5)
+
+        elif item == 'Elmo do Caçador de Monstros':
+            SLOT_ELMO = ['Elmo Espinhoso', 'Elmo da Fúria', 'Elmo do Caçador de Monstros']
+            if not self._trocar_slot(SLOT_ELMO, item, 'Elmo'):
+                return
+            self.gerenciar_equipamento(item)
+            self.atualizar_atributos_equipamento()
+            print("🪖 Elmo do Caçador de Monstros vestido...")
+            time.sleep(0.8)
+            print("   O visor foi arranhado por garras que não existem mais.")
+            time.sleep(0.5)
+            print("   • +2 CA permanente.")
+            print("   • Resistência a magias de controle (paralisia, cegueira, maldição).")
+            time.sleep(1.5)
+
+        elif item == 'Botas Encantadas':
+            if self.classe != 'Mago':
+                print("🥾 Estas botas absorvem energia arcana do solo...")
+                time.sleep(0.8)
+                print("   ❌ Apenas Magos conseguem sintonizar com elas. Os símbolos se apagam.")
+                time.sleep(1.5)
+                self.inventario.append(item)
+                return
+            botas_slot = ['Botas do Silêncio', 'Botas do Caçador de Monstros', 'Botas Encantadas']
+            bota_atual = next((eq for eq in self.equipados
+                               if any(b in eq for b in botas_slot)), None)
+            if bota_atual:
+                print(f"🥾 Você já usa {bota_atual}.")
+                resp = input(f"   Trocar por Botas Encantadas? (s/n): ").strip().lower()
+                if resp != 's':
+                    self.inventario.append(item)
+                    return
+                self.equipados.remove(bota_atual)
+                self.inventario.append(bota_atual)
+                print(f"   ↩️  {bota_atual} devolvida à bolsa.")
+            self.gerenciar_equipamento(item)
+            print("🥾 Botas Encantadas calçadas...")
+            time.sleep(0.8)
+            print("   Você sente a energia do solo subindo pelos tecidos finos.")
+            time.sleep(0.5)
+            print("   • +8% poder mágico total (Mago).")
             time.sleep(1.5)
 
         elif item.startswith('Cajado de Gelo'):
@@ -1477,8 +1903,6 @@ class Personagem:
             else:
                 print("❌ Apenas magos podem usar o Cajado de Gelo.")
                 self.inventario.append(item)
-
-        elif item == 'Tomo de Sabedoria Antiga':
             if getattr(self, 'subclasse', None) == 'Bárbaro':
                 print("📘 O Bárbaro encarar o tomo com desprezo.")
                 time.sleep(0.5)
@@ -1499,16 +1923,19 @@ class Personagem:
             bonus = int(item.split('+')[1]) if '+' in item else 1
             self.gerenciar_equipamento(item)
             print(f"🛡️ Amuleto de Resistência equipado! +1 CA, +{5+bonus} HP máximo.")
+            time.sleep(1.5)
 
         elif item.startswith('Anel de Regeneração'):
             self.gerenciar_equipamento(item)
             print("💍 Anel de Regeneração equipado! Restaura 1 HP por turno.")
+            time.sleep(1.5)
 
         elif item.startswith('Manoplas do Trovão'):
             bonus = int(item.split('+')[1])
             self.arma = {'nome': 'Manoplas do Trovão', 'bonus': bonus + 1, 'dano': bonus + 2}
             self.gerenciar_equipamento(item)
             print(f"⚡ Manoplas do Trovão equipadas! +{bonus+1} ataque, +{bonus+2} dano + elétrico.")
+            time.sleep(1.5)
 
         elif item.startswith('Orbe Mental de Vecna'):
             bonus = int(item.split('+')[1])
@@ -1519,39 +1946,48 @@ class Personagem:
             else:
                 print("❌ Apenas magos podem usar o Orbe Mental de Vecna.")
                 self.inventario.append(item)
-
+            time.sleep(1.5)
         # ========================
         # NOVOS ITENS — GUERREIRO
         # ========================
         elif item.startswith('Escudo dos Condenados'):
             self.gerenciar_equipamento(item)
             print("🛡️ Escudo dos Condenados equipado! CA alta + 20% de contra-ataque passivo ao errar.")
+            time.sleep(1.5)
 
         elif item.startswith('Colar da Fúria Ancestral'):
             self.gerenciar_equipamento(item)
             print("💢 Colar da Fúria Ancestral equipado! Concede bônus de ataque quando HP < 50%.")
+            time.sleep(1.5)
 
         # ========================
         # NOVOS ITENS — MAGO
         # ========================
         elif item.startswith('Grimório das Almas'):
-            if self.classe == 'Mago':
+            if getattr(self, 'subclasse', None) == 'Mago Negro':
                 bonus = int(item.split('+')[1]) if '+' in item else 1
                 self.gerenciar_equipamento(item)
                 print(f"📖 Grimório das Almas equipado! +{bonus} poder mágico. Desbloqueia Onda de Almas.")
-            else:
-                print("❌ Apenas magos compreendem o Grimório das Almas.")
+                time.sleep(1.5)
+            elif self.classe == 'Mago':
+                print("❌ O Grimório das Almas só responde a Magos Negros. As páginas se apagam ao toque.")
                 self.inventario.append(item)
+                time.sleep(1.5)
+            else:
+                print("❌ O Grimório das Almas recusa qualquer não-mago.")
+                self.inventario.append(item)
+                time.sleep(1.5)
 
         elif item == 'Cristal de Mana':
             if self.classe == 'Mago':
                 self.gerenciar_equipamento(item)
                 self.cristal_mana_ativo = True
                 print("💎 Cristal de Mana equipado! Recarrega magia 2x mais rápido.")
+                time.sleep(1.5)
             else:
                 print("❌ Apenas magos podem sintonizar o Cristal de Mana.")
                 self.inventario.append(item)
-
+                time.sleep(1.5)
         # ========================
         # NOVOS ITENS — LADINO
         # ========================
@@ -1741,10 +2177,12 @@ class Personagem:
             self.arma = {'nome': 'Adaga Simples', 'bonus': bonus, 'dano': max(1, bonus)}
             self.gerenciar_equipamento(item)
             print(f"🗡️ Adaga Simples equipada! +{bonus} ataque, +{max(1,bonus)} dano.")
+            time.sleep(1.5)
 
         elif item == 'Escudo de Madeira':
             self.gerenciar_equipamento(item)
             print("🛡️ Escudo de Madeira equipado! +2 CA.")
+            time.sleep(1.5)
 
         elif item.startswith('Cajado de Osso'):
             bonus = int(item.split('+')[1]) if '+' in item else 1
@@ -1755,14 +2193,17 @@ class Personagem:
             else:
                 print("❌ Apenas magos sentem a ressonância do Cajado de Osso.")
                 self.inventario.append(item)
+            time.sleep(1.5)
 
         elif item == 'Capa de Couro':
             self.gerenciar_equipamento(item)
             print("🧥 Capa de Couro vestida. +1 CA.")
+            time.sleep(1.5)
 
         elif item == 'Amuleto de Osso':
             self.gerenciar_equipamento(item)
             print("🦴 Amuleto de Osso pendurado ao pescoço. +1 ataque.")
+            time.sleep(1.5)
 
         # ========================
         # NOVOS ITENS — RAROS
@@ -1912,6 +2353,9 @@ class Personagem:
             self.inventario.append(item)
 
         elif item == 'Armadura de Couro':
+            SLOT_ARMADURA = ['Armadura de Mithril', 'Armadura de Couro', 'Armadura do Veterano']
+            if not self._trocar_slot(SLOT_ARMADURA, item, 'Armadura'):
+                return
             self.gerenciar_equipamento(item)
             print("🧥 Armadura de Couro vestida. +3 CA.")
 
@@ -1921,6 +2365,9 @@ class Personagem:
 
         elif item == 'Armadura do Veterano':
             if getattr(self, 'subclasse', None) == 'Cavaleiro':
+                SLOT_ARMADURA = ['Armadura de Mithril', 'Armadura de Couro', 'Armadura do Veterano']
+                if not self._trocar_slot(SLOT_ARMADURA, item, 'Armadura'):
+                    return
                 self.gerenciar_equipamento(item)
                 print("⚔️ Armadura do Veterano vestida! +4 CA. O metal ecoa vitórias antigas.")
             else:
@@ -1948,7 +2395,8 @@ class Personagem:
             print("🥊 Luvas de Combate calçadas. +1 ataque.")
 
         elif item == 'Talismã Protetor':
-            self.efeitos_ativos['talisma_protetor'] = 1
+            # Usar string como sentinela — atualizar_efeitos() só decrementa inteiros
+            self.efeitos_ativos['talisma_protetor'] = 'ativo'
             print("🔮 O Talismã Protetor pulsa com proteção antiga...")
             time.sleep(0.8)
             print("   ✅ O próximo acerto crítico (dano > 10) será reduzido a 3 de dano.")
@@ -2125,6 +2573,24 @@ class Personagem:
         self.atualizar_atributos_equipamento()
         return True
 
+    def _trocar_slot(self, slot_nomes, item_novo, label_slot):
+        """Verifica slot exclusivo. Se ocupado, pergunta troca.
+        Retorna True se pode prosseguir, False se cancelado."""
+        atual = next((eq for eq in self.equipados
+                      if any(s in eq for s in slot_nomes)), None)
+        if not atual:
+            return True
+        print(f"   Você já usa: {atual}")
+        resp = input(f"   Trocar por {item_novo}? (s/n): ").strip().lower()
+        if resp != 's':
+            self.inventario.append(item_novo)
+            return False
+        self.equipados.remove(atual)
+        self.inventario.append(atual)
+        print(f"   ↩️  {atual} devolvido à bolsa.")
+        self.atualizar_atributos_equipamento()
+        return True
+
     def gerenciar_equipamento(self, item_nome):
         """Equipa um item. Limite de 6 slots. Se cheio, oferece substituição."""
         if len(self.equipados) < 6:
@@ -2203,9 +2669,6 @@ class Personagem:
             elif efeito == 'forca':
                 print("💪 O efeito da Poção de Força acabou!")
                 self.bonus_temporario = 0
-            elif efeito == 'elmo_furia':
-                print("🪖 Os chifres do Elmo se partiram no impacto! Bônus consumido.")
-                self.bonus_temporario = 0
             elif efeito == 'protecao':
                 bonus = self.efeitos_ativos.pop('valor_protecao', None)
                 if bonus:
@@ -2259,6 +2722,13 @@ class Personagem:
                 ataque_bonus += bonus    # bônus escalável extra (já há +3 fixo no arma dict)
             elif 'Espada Longa' in item:
                 ataque_bonus += bonus    # bônus escalável extra (já há +2 fixo no arma dict)
+            elif 'Cajado do Fogo Descendente' in item:
+                ataque_bonus += bonus
+                dano_bonus   += max(1, bonus)
+            elif 'Códice dos Segredos Elementais' in item:
+                pass   # passivo — magias desbloqueadas via _magias_disponiveis
+            elif 'Chapéu Cósmico' in item:
+                ca_bonus += 1   # leve proteção física além do desvio
             elif any(palavra in item for palavra in [
                 'Espada Curta', 'Lâmina Sombria', 'Arco Élfico', 'Machado Anão Flamejante',
                 'Manoplas do Trovão', 'Elmo da Fúria', 'Cajado de Gelo',
@@ -2308,6 +2778,12 @@ class Personagem:
                 pass   # combate: ativado como item
             elif 'Tomo da Entropia' in item:
                 pass   # passivo aleatório por turno
+            elif 'Elmo do Caçador de Monstros' in item:
+                ca_bonus += 2
+            elif 'Botas do Caçador de Monstros' in item:
+                pass   # passivo de resistência — tratado em processar_efeitos
+            elif 'Botas Encantadas' in item:
+                pass   # passivo +8% magia — tratado em usar_magia
             elif 'Tocha Suja' in item:
                 pass   # visão: tratada em Mapa.mostrar via equipados
             elif 'Grimório da Maldição' in item:
@@ -2402,6 +2878,12 @@ class Personagem:
             amplificado = int(poder * 1.15)
             print(f"👁️ O Orbe de Vecna amplifica: {poder} ➜ {amplificado}")
             poder = amplificado
+        # Botas Encantadas (Mago) — +8% poder mágico
+        if self.classe == 'Mago' and any('Botas Encantadas' in eq for eq in self.equipados):
+            amplificado = int(poder * 1.08)
+            if amplificado > poder:
+                print(f"🥾 Botas Encantadas: energia do solo +8% ({poder} ➜ {amplificado})")
+            poder = amplificado
         # Olho Necromântico — bônus acumulado por kills
         poder += self.efeitos_ativos.get('olho_kills', 0)
         return poder
@@ -2420,6 +2902,9 @@ class Inimigo:
     }
     IMUNES_CEGUEIRA = {
         "Dracolich", "Espectro das Profundezas", "Arauto do Vazio",
+        "Serpente Abissal",   # sem pálpebras — detecta por calor e vibração
+        "Verme das Entranhas",  # sem olhos — percepção tátil e olfativa
+        "Olho de Vecna",       # a visão do Olho transcende o espectro físico
     }
     IMUNES_SANGRAMENTO = {
         "Gárgula de Pedra", "Esqueleto Guardião",
@@ -2455,6 +2940,11 @@ class Inimigo:
                 if self.imune_sangramento and efeito == 'sangramento':
                     remover.append(efeito)
                     print(f"🪨 {self.nome} é imune a sangramento!")
+                    continue
+                # Paralisado: não causa dano — decrementa aqui mas APENAS se turno de ação
+                if efeito == 'paralisado':
+                    # Não processar dano (é 0) nem decrementar aqui
+                    # O decremento acontece em _decrementar_paralisado(), chamado APÓS atacar()
                     continue
                 dano = dados['dano']
                 self.hp -= dano
@@ -2541,7 +3031,7 @@ class Inimigo:
             del alvo.efeitos_ativos['ressurreicao']
             print(f"✨ A RUNA DE RESSURREIÇÃO brilha! {alvo.nome} permanece com 1 HP!")
 
-        if (dano > 10 and getattr(alvo, 'efeitos_ativos', {}).get('talisma_protetor', 0) > 0):
+        if (dano > 10 and alvo.efeitos_ativos.get('talisma_protetor')):
             print(f"🔮 TALISMÃ PROTETOR! Crítico absorvido — dano reduzido a 3!")
             dano = 3
             del alvo.efeitos_ativos['talisma_protetor']
@@ -2817,9 +3307,7 @@ class VermedaEntranhas(InimigoEspecial):
             pos=pos, tipo='venenoso')
 
     def atacar(self, alvo):
-        if getattr(alvo, 'invisivel', False):
-            print(f"🐛 Verme rasteja às cegas.")
-            return
+        # Sem olhos — detecta pelo calor e vibração, ignora invisibilidade
         r = rolar_dado(20); t = r + self.ataque_bonus
         if r == 20:
             dano = rolar_dado(self.dano_lados) * 2
@@ -2895,6 +3383,12 @@ class SacerdoteDevedor(InimigoEspecial):
         if getattr(alvo, 'invisivel', False):
             print(f"✝️ Sacerdote murmura um encanto sem alvo.")
             return
+        # Se o Sacerdote está cego, 25% de chance de dissipar magicamente (gasta o turno)
+        if 'cegueira' in self.efeitos_ativos:
+            if random.random() < 0.25:
+                del self.efeitos_ativos['cegueira']
+                print(f"✝️ SACERDOTE DEVORADOR conjura um encanto de purificação — cegueira dissipada!")
+                return
         roll = random.random()
         if roll < 0.20:
             # Auto-cura
@@ -3350,14 +3844,22 @@ def _usar_habilidade_especial(jogador, inimigo):
     # ── GUERREIRO ────────────────────────────────────────────────────
     if hab == 'investida':
         # Dano: (2d_lados + 2×arma_dano) com +3 de acerto. Penalidade: -2 CA
+        # Bônus extra se Elmo da Fúria ativo
+        bonus_elmo = 0
+        elmo_dict = jogador.efeitos_ativos.get('elmo_furia')
+        if isinstance(elmo_dict, dict):
+            bonus_elmo = elmo_dict.get('bonus', 0)
+
         print("⚔️  INVESTIDA FEROZ!")
         time.sleep(0.5)
+        if bonus_elmo:
+            print(f"   🪖 Elmo da Fúria potencializa a investida! (+{bonus_elmo} dano extra)")
         print("   Você avança com toda a força, arma à frente...")
         time.sleep(1)
         rolagem = rolar_dado(20) + jogador.ataque_bonus + 5
         if rolagem >= inimigo.ac or rolagem == 20:
             dano = (rolar_dado(jogador.dano_lados) + rolar_dado(jogador.dano_lados)
-                    + arma_dano * 2)
+                    + arma_dano * 2 + bonus_elmo)
             inimigo.hp -= dano
             print(f"   💥 Investida conecta! {dano} de dano massivo!")
         else:
@@ -3365,6 +3867,18 @@ def _usar_habilidade_especial(jogador, inimigo):
         print("   ⚠️  Você ficou exposto! CA reduzida até o próximo turno.")
         jogador.ac = max(1, jogador.ac - 2)
         jogador.efeitos_ativos['exposto'] = 2
+
+        # Elmo: decrementar durabilidade pela investida (conta como ataque)
+        if isinstance(elmo_dict, dict):
+            elmo_dict['ataques'] -= 1
+            if elmo_dict['ataques'] == 1:
+                print("🪖 Os espinhos do Elmo estão cedendo... (último ataque!)")
+            if elmo_dict['ataques'] <= 0:
+                jogador.bonus_temporario = 0
+                jogador.atualizar_atributos_equipamento()
+                del jogador.efeitos_ativos['elmo_furia']
+                print("🪖 Os espinhos do Elmo se partiram na investida! Bônus esgotado.")
+
         jogador.cooldown_habilidade = 4
         time.sleep(1.5)
         return True
@@ -3838,8 +4352,20 @@ def combate(jogador, inimigo, inimigo_iniciou=False):
             del jogador.efeitos_ativos['exposto']
 
         if inimigo.esta_vivo():
+            # ── Chapéu Cósmico — 25% desviar para o vazio cósmico ────
+            if (any('Chapéu Cósmico' in eq for eq in jogador.equipados)
+                    and random.random() < 0.25):
+                print(f"🌌 CHAPÉU CÓSMICO! O ataque de {inimigo.nome} é absorvido pelo vazio!")
+                time.sleep(1)
+
+            # ── Paralisia / Atordoamento — bloqueia antes de qualquer atacar() ──
+            elif 'paralisado' in inimigo.efeitos_ativos or 'atordoado' in inimigo.efeitos_ativos:
+                efeito_nome = 'paralisado' if 'paralisado' in inimigo.efeitos_ativos else 'atordoado'
+                print(f"🔒 {inimigo.nome} está {efeito_nome} — não pode agir!")
+                time.sleep(1)
+
             # ── Corrente do Espectro (Ladino) — 50% negar dano físico ──
-            if (jogador.classe == 'Ladino' and
+            elif (jogador.classe == 'Ladino' and
                     any('Corrente do Espectro' in eq for eq in jogador.equipados) and
                     random.random() < 0.50):
                 print(f"👻 CORRENTE DO ESPECTRO! Você se dissolve entre os planos — {inimigo.nome} não atinge.")
@@ -3874,6 +4400,18 @@ def combate(jogador, inimigo, inimigo_iniciou=False):
                     print("   🛡️  Contra-ataque disparado. Recarga: 4 turnos.")
                 else:
                     inimigo.atacar(jogador)
+
+            # ── Decrementar paralisado/atordoado APÓS o turno de ação ─
+            for ef_ctrl in ('paralisado', 'atordoado'):
+                if ef_ctrl in inimigo.efeitos_ativos:
+                    dados_p = inimigo.efeitos_ativos[ef_ctrl]
+                    if isinstance(dados_p, dict):
+                        dados_p['turnos'] -= 1
+                        if dados_p['turnos'] <= 0:
+                            del inimigo.efeitos_ativos[ef_ctrl]
+                            if ef_ctrl == 'paralisado' and 'colapso_ca' in inimigo.efeitos_ativos:
+                                inimigo.ac += inimigo.efeitos_ativos.pop('colapso_ca')
+                            print(f"🔓 {inimigo.nome} se liberta do {ef_ctrl}!")
 
             # ── Lâmina envenenada aplica veneno no próximo ataque jogador ──
             # (já aplicado no atacar() do jogador via flag — reduz cargas aqui)
@@ -4512,6 +5050,14 @@ class Mapa:
                 'Rede de Caça',
                 f'Tomo da Entropia +{2 + dificuldade // 4}',
                 'Cálice de Sangue Antigo',
+                # Equipamentos do Caçador — lategame
+                'Botas do Caçador de Monstros',
+                'Elmo do Caçador de Monstros',
+                'Botas Encantadas',
+                # Novos itens mágicos
+                f'Cajado do Fogo Descendente +{1 + dificuldade // 3}',
+                f'Códice dos Segredos Elementais +{1 + dificuldade // 4}',
+                'Chapéu Cósmico',
             ]
 
         # ── Diário Perdido: pool especial — uma única entrada (raríssimo) ──
@@ -5173,27 +5719,27 @@ class DungeonGame:
         # ── Detecção de palavras-chave ────────────────────────────────
         # Cada categoria tem raízes de palavras para capturar flexões
         KWDS_OURO      = {'ouro', 'rique', 'rico', 'tesour', 'moeda', 'dinh', 'fortu', 'lucr', 'ganho', 'riqueza', 'espóli', 'espolios', 'comerci', 'negóc', 'contrato', 'joia', 'gemas', 'recompensa'}
-        KWDS_VINGANCA  = {'vingan', 'vingar', 'ódio', 'odio', 'raiva', 'ira', 'punir', 'puni', 'matar', 'assassi', 'traido', 'traição', 'rancor', 'fúria', 'furia', 'revide', 'retaliar', 'retali', 'sangue por sangue', 'não perdoo', 'nao perdoo', 'ele merece', 'ela merece', 'destruir', 'acerto'}
-        KWDS_SABER     = {'conhec', 'saber', 'segred', 'mistér', 'mister', 'verda', 'revela', 'sabedo', 'aprend', 'estud', 'pesqui', 'descob', 'arcano', 'antigo', 'proibid', 'livro', 'grimório', 'magia', 'comprend', 'entend', 'decifr', 'manuscrit', 'tábua', 'necrono', 'mythos', 'verdade'}
+        KWDS_VINGANCA  = {'vingan', 'vingar', 'ódio', 'odio', 'raiva', 'ira', 'punir', 'puni', 'matar', 'assassi', 'traido', 'traição', 'rancor', 'fúria', 'furia', 'revide', 'retaliar', 'retali', 'sangue por sangue', 'não perdoo', 'nao perdoo', 'ele merece', 'ela merece', 'destruir', 'acerto', 'pendência', 'pendencia'}
+        KWDS_SABER     = {'conhec', 'saber', 'mistér', 'mister', 'verda', 'revela', 'sabedo', 'aprend', 'estud', 'pesqui', 'descob', 'arcano', 'antigo', 'proibid', 'livro', 'grimório', 'magia', 'comprend', 'entend', 'decifr', 'manuscrit', 'tábua', 'necrono', 'mythos', 'verdade', 'curiosidade', 'curios', 'entendimento', 'entender', 'descobrir'}
         KWDS_SONHO     = {'sonho', 'sonhei', 'visão', 'visao', 'chamad', 'convit', 'pressági', 'presság', 'voz', 'manda', 'guiad', 'profecia', 'oráculo', 'oracul', 'augúrio', 'auguri', 'sinal', 'presság', 'revelação', 'quando dormia', 'sonhava que', 'nas trevas eu ouvi', 'algo me chama'}
         KWDS_AMOR      = {'famíl', 'famil', 'amor', 'saudad', 'esposa', 'marido', 'filh', 'pai', 'mãe', 'mae', 'irmã', 'irmao', 'irmão', 'amad', 'perdi', 'buscand', 'salvar', 'rescue', 'resgate', 'luto', 'chorei', 'levaram', 'desaparec',}
-        KWDS_GLORIA    = {'glória', 'gloria', 'fama', 'honra', 'héroi', 'heroi', 'lend', 'imortal', 'nome', 'histór', 'épico', 'epico', 'proeza', 'bardo', 'canto', 'memór', 'reconhec', 'prová', 'provar', 'rei', 'rainha'}
+        KWDS_GLORIA    = {'glória', 'gloria', 'fama', 'honra', 'héroi', 'heroi', 'lend', 'imortal', 'nome', 'histór', 'épico', 'epico', 'proeza', 'bardo', 'canto', 'memór', 'reconhec', 'prová', 'provar', 'rei', 'rainha', 'lenda', 'epico', 'épico'}
         KWDS_MEDO      = {'medo', 'pavor', 'terror', 'assust', 'corage', 'enfrent', 'desafi', 'prova', 'superar', 'supero', 'vencer o medo', 'fobia', 'apavorad', 'tremir', 'tremo', 'não consigo parar', 'nao consigo parar', 'pesadelo', 'acordei e vim'}
         KWDS_NIHIL     = {'nada', 'nihil', 'vazio', 'absurd', 'sem sentido', 'não importa', 'nao importa', 'indiferença', 'indiferenc', 'camus', 'nietzsch', 'além do bem', 'alem do bem', 'vontade de poder', 'morte de deus', 'eterno retorno', 'revolta'}
-        KWDS_EXILIO    = {'exílio', 'exilio', 'banid', 'expuls', 'desterra', 'fugitiv', 'fugindo', 'perseguido', 'foragid', 'procurado', 'escond', 'escap', 'não posso voltar', 'nao posso voltar', 'eles me querem', 'não tenho lar', 'nao tenho lar'}
-        KWDS_CULPA     = {'culpa', 'arrepen', 'pecado', 'redemp', 'redenção', 'redencao', 'perdão', 'perdao', 'expiação', 'expiacao', 'pagar', 'merec', 'castigo', 'puniç', 'punição', 'fiz algo', 'algo que fiz', 'não mereço', 'nao mereço', 'dívida'}
-        KWDS_LOUCURA   = {'loucura', 'insania', 'insanidade', 'loucur', 'delirio', 'delírio', 'alucinação', 'alucinac', 'vozes', 'não sou mais', 'nao sou mais', 'mente quebr', 'desmor', 'rasgar', 'vejo coisas', 'ouço algo', 'não estou bem', 'nao estou bem', 'fragmentad'}
+        KWDS_EXILIO    = {'exílio', 'exilio', 'banid', 'expuls', 'desterra', 'fugitiv', 'fugindo', 'perseguido', 'foragid', 'procurado', 'escond', 'escap', 'não posso voltar', 'nao posso voltar', 'me querem', 'não tenho lar', 'nao tenho lar'}
+        KWDS_CULPA     = {'culpa', 'arrepen', 'pecado', 'redemp', 'redenção', 'redencao', 'perdão', 'perdao', 'expiação', 'expiacao', 'pagar', 'merec', 'castigo', 'puniç', 'punição', 'fiz algo', 'algo que fiz', 'não mereço', 'nao mereço', 'dívida', 'fardo'}
+        KWDS_LOUCURA   = {'loucura', 'insano', 'insanidade', 'loucur', 'delirio', 'delírio', 'alucinação', 'alucinac', 'vozes', 'não sou mais', 'nao sou mais', 'mente quebr', 'desmor', 'rasgar', 'vejo coisas', 'ouço algo', 'não estou bem', 'nao estou bem', 'fragmentad'}
         KWDS_DESTINO   = {'destino', 'fatali', 'fado', 'inevitável', 'inevitavel', 'predestinado', 'profet', 'não tenho escolha', 'nao tenho escolha', 'foi escrito', 'marcado', 'estava escrito', 'não há outra via', 'nao ha outra via', 'as estrelas disseram'}
-        KWDS_PODER     = {'poder', 'dominar', 'domínio', 'dominio', 'controlar', 'controle', 'governa', 'soberan', 'rei', 'rainha', 'trono', 'conquist', 'subjugar', 'subjug', 'quero comandar', 'ninguém me para', 'nao me param', 'não me param'}
+        KWDS_PODER     = {'poder', 'dominar', 'domínio', 'dominio', 'controlar', 'controle', 'governa', 'soberan', 'rei', 'rainha', 'trono', 'conquist', 'subjugar', 'subjug', 'quero comandar', 'ninguém me para', 'nao me param', 'não me param', 'poderoso'}
         KWDS_MORTE     = {'morrer', 'morto', 'moribund', 'já estou', 'ja estou morto', 'acabou', 'fim', 'última coisa', 'ultima coisa', 'não tenho mais', 'nao tenho mais', 'suicid', 'imolação', 'imolaç', 'sacrifíc', 'sacrific', 'entregar minha vida', 'morte', 'morro de qualquer forma'}
-        KWDS_FILOSOFIA = {'heidegger', 'sartre', 'camus', 'kafka', 'poe', 'lovecraft', 'borges', 'schopenhau', 'shopenhau', 'pessimis', 'absurdo', 'contingência', 'contingencia', 'ser-para-morte', 'ser para morte', 'angústia', 'angustia existencial', 'shopenhauer', 'niilismo', 'dasein', 'fenomenolog', 'kierkeg', 'stirner'}
+        KWDS_FILOSOFIA = {'pessimis', 'absurdo', 'contingência', 'contingencia', 'ser-para-morte', 'ser para morte', 'angústia', 'angustia existencial'}
         # ── NOVAS MOTIVAÇÕES ────────────────────────────────────────────
-        KWDS_SEGREDO   = {'segredo que', 'guardar', 'ninguém pode saber', 'nao pode saber', 'não pode saber', 'escondi', 'escondem', 'querem calar', 'silenciar', 'enterrar', 'sumir com', 'verdade oculta', 'conspiraç', 'conspiracao', 'eles sabem', 'senhor deste mundo'}
-        KWDS_CRIACAO   = {'criar', 'construir', 'forjar', 'esculpir', 'obra', 'minha obra', 'arte', 'artefato', 'inventar', 'descobrir método', 'alcançar maestria', 'alcancar maestria', 'legado que deixo', 'transformar', 'mudar o mundo', 'nova era', 'fórmula', 'formula'}
-        KWDS_SANGUE    = {'matar porque gosto', 'prazer em matar', 'sangue', 'cheiro de sangue', 'violência me chama', 'guerra chama', 'só sinto algo', 'so sinto algo', 'quando mato', 'quando há luta', 'quando ha luta', 'berserker', 'berserk', 'fúria de batalha', 'furia de batalha', 'adrenalina'}
-        KWDS_ABISMO    = {'abismo', 'as profundezas me chamam', 'coisa nas profundezas', 'entidade', 'grande antigo', 'cthulhu', 'dagon', 'nyarlathotep', 'azathoth', 'yog', 'deep one', 'cosmico', 'cósmico', 'fora do tempo', 'infinito fria', 'estrelas certas', 'quando as estrelas'}
-        KWDS_MAGIA_VELHA = {'magia antiga', 'feiticeiro', 'runa', 'pacto', 'fiz um pacto', 'assinei', 'vendi', 'alma por', 'preço da magia', 'dom que cobrou', 'custo do dom', 'maldição que trouxe', 'grimório que encontrei', 'livro proibido que li', 'livro antigo',}
-        KWDS_RESISTENCIA = {'resistir', 'resistência', 'resistencia', 'não se curvar', 'nao se curvar', 'recusar', 'recuso', 'me recuso', 'não aceito', 'nao aceito', 'luta sem fim', 'nunca capitulo', 'nunca me rendo', 'prefiro morrer lutando', 'até o fim'}
+        KWDS_SEGREDO   = {'segredo que', 'guardar', 'ninguém pode saber', 'nao pode saber', 'não pode saber', 'escondi', 'escondem', 'querem calar', 'silenciar', 'enterrar', 'sumir com', 'verdade oculta', 'conspiraç', 'conspiracao', 'eles sabem', 'senhor deste mundo', 'segredo', 'revelação', 'revela', 'vecna'}
+        KWDS_CRIACAO   = {'criar', 'construir', 'forjar', 'esculpir', 'obra', 'minha obra', 'arte', 'artefato', 'inventar', 'descobrir método', 'alcançar maestria', 'alcancar maestria', 'legado que deixo', 'transformar', 'mudar o mundo', 'nova era', 'fórmula', 'formula', 'criacao', 'criação', 'destruir', 'destruição'}
+        KWDS_SANGUE    = {'matar', 'prazer', 'sangue', 'cheiro de sangue', 'violência', 'violencia', 'guerra chama', 'elimino', 'eliminar', 'eliminação', 'eliminacao', 'quando mato', 'quando há luta', 'quando ha luta', 'berserker', 'berserk', 'fúria de batalha', 'furia de batalha', 'empolgação'}
+        KWDS_ABISMO    = {'abismo', 'as profundezas me chamam', 'coisa nas profundezas', 'entidade', 'grande antigo', 'deep one', 'cosmico', 'cósmico', 'cosmo', 'fora do tempo', 'infinito fria', 'estrelas certas', 'quando as estrelas'}
+        KWDS_MAGIA_VELHA = {'magia antiga', 'feiticeiro', 'runa', 'pacto', 'fiz um pacto', 'assinei', 'vendi', 'alma por', 'preço da magia', 'dom que cobrou', 'custo do dom', 'maldição que trouxe', 'grimório que encontrei', 'livro proibido que li', 'livro antigo', 'conhecimento proibido', 'conhecimento antigo', 'livro proibido'}
+        KWDS_RESISTENCIA = {'resistir', 'resistência', 'resistencia', 'não se curvar', 'nao se curvar', 'recusar', 'recuso', 'me recuso', 'não aceito', 'nao aceito', 'luta sem fim', 'nunca me rendo', 'prefiro morrer lutando', 'até o fim'}
 
         # ── SUBCLASSES — palavras-chave de detecção ──────────────────────
         KWDS_BARBARO    = {'fúria', 'furia', 'berserk', 'selvagem', 'raiva', 'barbaro', 'bárbaro',
@@ -5204,10 +5750,10 @@ class DungeonGame:
                            'nobreza', 'proteger', 'servir', 'dever', 'lealdade', 'vassalo',
                            'espada e escudo', 'disciplina', 'promessa', 'ordem', 'cavalaria',
                            'arte marcial', 'tática', 'formação', 'estudei'}
-        KWDS_MAGO_AZUL  = {'luz', 'curar', 'cura', 'proteção', 'protecao', 'elemento', 'elementar',
+        KWDS_MAGO_AZUL  = {'luz', 'curar', 'cura', 'proteção', 'protecao', 'elemento', 'elemental', 'elementar',
                            'agua', 'fogo', 'ar', 'terra', 'bondade', 'ajudar', 'iluminar',
                            'claridade', 'benevolente', 'harmonia', 'equilíbrio', 'equilibrio',
-                           'natureza arcana', 'magia da vida', 'poder mágico puro', 'alma de luz', 'alma de luz'}
+                           'natureza arcana', 'magia natural', 'poder mágico puro', 'alma de luz'}
         KWDS_MAGO_NEGRO = {'necro', 'maldição', 'maldicao', 'sombras', 'escuridão', 'escuridao',
                            'poder ilimitado', 'poderoso', 'almas', 'drain', 'drenar', 'morte é poder', 'poder mágico mortal',
                            'morte e poder', 'necromancia', 'poder', 'poder absoluto', 'tudo tem preço',
@@ -5216,11 +5762,11 @@ class DungeonGame:
         KWDS_LADRAO     = {'roubar', 'espólio', 'tomar', 'furtar', 'recompensa', 'bolso', 'mercado negro', 'sobreviver', 'esgueirar',
                            'fugir sempre', 'não confrontar', 'nao confrontar', 'ladrão', 'ladrao',
                            'pickpocket', 'armadilha', 'armadilhas', 'ouro',
-                           'tesouros', 'abrir fechaduras', 'deslizar nas sombras', 'sombras e lucro'}
+                           'tesouros', 'abrir fechaduras', 'deslizar nas sombras', 'sombras e lucro', 'furtiv'}
         KWDS_ASSASSINO  = {'matar', 'eliminar', 'eliminacao', 'eliminação', 'assassinar', 'assassinato', 'contrato', 'alvo', 'silencioso',
                            'execução', 'execucao', 'executar', 'veneno', 'perfeição', 'perfeicao', 'sem rastro',
                            'um golpe', 'golpe certeiro', 'ofício do assassino', 'ninguém viu',
-                           'ninguem viu', 'sigilo e morte', 'lâmina', 'veneno', 'alvo', 'caça',}
+                           'ninguem viu', 'sigilo e morte', 'lâmina', 'veneno', 'alvo', 'caça'}
 
         def detectar(resposta, kwds):
             return any(k in resposta for k in kwds)
@@ -5256,7 +5802,7 @@ class DungeonGame:
         resp_motivo = perguntar("Por que viestes ao Limiar?")
         limpar_tela()
 
-        # Reações e bônus por motivo
+        # Reações e bônus por motivo #f"Ouro.",
         if detectar(resp_motivo, KWDS_OURO):
             porteiro_curto([
                 f"Ouro.",
@@ -5698,7 +6244,7 @@ class DungeonGame:
                     "Como vedes o conhecimento arcano?",
                 ], pausa=2)
                 idx_sc = escolha_numerada("Vossa visão:", [
-                    "Como ferramenta de criação e proteção — luz que ordena o caos",
+                    "Como ferramenta de criação e proteção — luz que ordena, mas que também destrói",
                     "Como poder que precisa ser tomado — mesmo que o preço seja alto",
                 ])
                 subclasse_detectada = 'Mago Azul' if idx_sc == 0 else 'Mago Negro'
@@ -5719,8 +6265,8 @@ class DungeonGame:
             'Bárbaro':    ("O Porteiro inclina a cabeça. \"Fúria. O mais primitivo dos dons.\"",
                           "A raiva não precisa de estratégia para ser letal."),
             'Cavaleiro':  ("\"Disciplina e código.\"", "O Limiar respeita os que seguem uma ética de batalha."),
-            'Mago Azul':  ("\"Luz arcana. A magia como cura e ordem.\"", "Rara a benevolência aqui embaixo."),
-            'Mago Negro': ("\"Sombras e necromantica.\"", "O preço do poder sombrio é cobrado cedo ou tarde."),
+            'Mago Azul':  ("\"Luz arcana. A magia como cura e ordem.\"", "És um só com as leis da Natureza."),
+            'Mago Negro': ("\"Sombras e necromantica.\"", "O preço do Puro Poder é cobrado cedo ou tarde."),
             'Ladrão':     ("\"Sobrevivência. O mais pragmático dos motores.\"", "O Limiar conhece quem sabe fugir. E o desafia."),
             'Assassino':  ("\"Um alvo. Sempre há um alvo.\"", "O Porteiro anota: perigoso e focado."),
         }
@@ -5782,7 +6328,7 @@ class DungeonGame:
             resp_origem = perguntar("De onde vindes?")
             limpar_tela()
 
-            if detectar(resp_origem, KWDS_VINGANCA) or detectar(resp_origem, {'guerra', 'batalha', 'conflito', 'exérc'}):
+            if detectar(resp_origem, KWDS_VINGANCA) or detectar(resp_origem, {'guerra', 'batalha', 'conflito', 'exérc', 'aldeia', 'vilarej'}):
                 porteiro_curto([
                     "O campo de batalha. Claro.",
                     "",
@@ -5795,7 +6341,7 @@ class DungeonGame:
                 personagem.dano_lados += 2
                 personagem.base_dano_lados += 2
                 bonus_narrativo(f"+2 dado de dano. Sangue velho nos músculos.")
-            elif detectar(resp_origem, KWDS_AMOR | {'família', 'aldeia', 'vilag', 'cidad'}):
+            elif detectar(resp_origem, KWDS_AMOR | {'família', 'cidad', 'ruína', 'ruina', 'civilização', 'civilizacao'}):
                 porteiro_curto([
                     "Uma vida antes desta.",
                     "",
@@ -5838,7 +6384,7 @@ class DungeonGame:
             resp_segredo = perguntar("Que segredo buscais?")
             limpar_tela()
 
-            if detectar(resp_segredo, {'morte', 'imortal', 'vida etern', 'ressurr', 'nécro', 'necro'}):
+            if detectar(resp_segredo, {'morte', 'imortal', 'vida etern', 'ressurr', 'nécro', 'necro', 'absolut', 'poder ilimitado', 'vecna'}):
                 porteiro_curto([
                     "A imortalidade. Ou seu reverso.",
                     "",
@@ -5851,7 +6397,7 @@ class DungeonGame:
                 personagem.ataque_bonus += 2
                 personagem.base_ataque_bonus += 2
                 bonus_narrativo("+2 bônus de ataque mágico. A necromantica afia o feitiço.")
-            elif detectar(resp_segredo, {'origem', 'criação', 'começo', 'princ', 'deus', 'divino', 'cosmic'}):
+            elif detectar(resp_segredo, {'origem', 'criação', 'começo', 'princ', 'deus', 'divino', 'cosmic', 'cósmic', 'cosmos', 'segredo do mundo'}):
                 porteiro_curto([
                     "A origem de tudo.",
                     "",
@@ -5906,7 +6452,7 @@ class DungeonGame:
                 personagem.ac += 1
                 personagem.base_ac += 1
                 bonus_narrativo("+1 ataque + +1 CA. A intuição geográfica protege.")
-            elif detectar(resp_segredo, {'pessoa', 'nomes', 'ident', 'rosto', 'quem', 'poder'}):
+            elif detectar(resp_segredo, {'pessoa', 'nomes', 'ident', 'rosto', 'quem', 'poder', 'alvo'}):
                 porteiro_curto([
                     "Nomes que não devem ser ditos em voz alta.",
                     "",
@@ -6004,7 +6550,7 @@ class DungeonGame:
         sc = personagem.subclasse
 
         if sc == 'Bárbaro':
-            itens_base = ['poção de cura', 'Espada Curta +1', 'Escudo de Madeira', 'Runa do Limiar']
+            itens_base = ['poção de cura', 'Espada Curta +1', 'Escudo de Madeira']
             porteiro_curto([
                 "Bárbaro. Força bruta e instinto afiado.",
                 "Tomos são papel. Ferro é real.",
@@ -6018,7 +6564,7 @@ class DungeonGame:
             extras = ['Elmo da Fúria +2', 'Espada Curta +1', 'Poção de Sangue', 'explosivo arremessável']
 
         elif sc == 'Cavaleiro':
-            itens_base = ['poção de cura', 'Espada Longa +1', 'Armadura do Veterano', 'Runa do Limiar']
+            itens_base = ['poção de cura', 'Espada Longa +1', 'Armadura do Veterano']
             porteiro_curto([
                 "Cavaleiro. Disciplina, código e aço refinado.",
                 "Podeis ler tomos — o conhecimento também é armadura.",
@@ -6032,9 +6578,9 @@ class DungeonGame:
             extras = ['Espada Curta +1', 'Amuleto de Resistência +1', 'Escudo de Madeira', 'explosivo arremessável']
 
         elif sc == 'Mago Azul':
-            itens_base = ['poção de cura', 'Cristal de Mana', 'antídoto', 'Runa do Limiar']
+            itens_base = ['poção de cura', 'Botas Encantadas', 'antídoto']
             porteiro_curto([
-                "Mago da Luz. A magia que protege e restaura.",
+                "Mago de Luz Arcana. A magia  protege e restaura.",
                 "Toque de Cura já está em vosso arsenal.",
             ], pausa=2)
             op_extra = [
@@ -6046,7 +6592,7 @@ class DungeonGame:
             extras = ['Cajado de Gelo +1', 'Tomo de Sabedoria Antiga', 'Grimório Portal', 'Amuleto de Deflexão']
 
         elif sc == 'Mago Negro':
-            itens_base = ['poção de cura', 'Grimório das Almas +2', 'Orbe Mental de Vecna +1', 'Runa do Limiar']
+            itens_base = ['poção de cura', 'Orbe Mental de Vecna +1']
             porteiro_curto([
                 "Mago das Sombras. Necromancia e maldição.",
                 "Drenar Vida já está em vosso arsenal.",
@@ -6060,7 +6606,7 @@ class DungeonGame:
             extras = ['Grimório do Colapso', 'Tomo de Sabedoria Antiga', 'explosivo arremessável', 'Poção de Sangue']
 
         elif sc == 'Ladrão':
-            itens_base = ['Botas do Silêncio', 'Adaga Simples +1', 'chave', 'Runa do Limiar']
+            itens_base = ['Botas do Silêncio', 'Adaga Simples +1', 'chave']
             porteiro_curto([
                 "Ladrão. Furtividade, sobrevivência e oportunismo.",
                 "Armadilhas raramente vos surpreendem.",
@@ -6074,7 +6620,7 @@ class DungeonGame:
             extras = ['Capa de Couro', 'poção de invisibilidade', 'Adaga Simples +1', 'explosivo arremessável']
 
         else:  # Assassino
-            itens_base = ['Adaga Envenenada +1', 'Botas do Silêncio', 'antídoto', 'Runa do Limiar', 'Diário Perdido']
+            itens_base = ['Adaga Envenenada +1', 'Botas do Silêncio', 'antídoto']
             porteiro_curto([
                 "Assassino. Silêncio, veneno e um único golpe.",
                 "Crít em 19 ou 20. Veneno automático no golpe letal.",
@@ -6168,7 +6714,7 @@ class DungeonGame:
             op_dom = [
                 "Mente de cristal — a magia voa mais longe (+3 bônus mágico)",
                 "Véu arcano — a aura protege o corpo frágil (+3 CA)",
-                "Canal vital — a magia drena os inimigos (+2 HP máx por feitiço)",
+                "Canal vital (reforçar) — a magia drena os inimigos (+2 HP máx por feitiço)",
                 "Corpus etéreo — a carne desaparece sob pressão (+5 HP)",
             ]
             idx_dom = escolha_numerada("Vosso dom:", op_dom)
@@ -6179,9 +6725,14 @@ class DungeonGame:
                 personagem.ac += 3; personagem.base_ac += 3
                 bonus_narrativo("+3 CA permanente.")
             elif idx_dom == 2:
-                # Efeito especial: cada magia regenera 2 HP (implementado via flag)
-                personagem.efeitos_ativos['canal_vital'] = 999  # permanente
-                bonus_narrativo("+2 HP a cada feitiço lançado. Canal vital ativo.")
+                # Canal Vital: Mago Azul já tem por padrão (+2 HP/feitiço)
+                # Dom reforça para +4 HP/feitiço; outras classes ganham o efeito base
+                if personagem.efeitos_ativos.get('canal_vital') == 999:
+                    personagem.efeitos_ativos['canal_vital'] = 998  # flag: reforçado
+                    bonus_narrativo("+2 HP a cada feitiço lançado. Canal vital REFORÇADO — +4 HP por magia.")
+                else:
+                    personagem.efeitos_ativos['canal_vital'] = 999  # permanente
+                    bonus_narrativo("+2 HP a cada feitiço lançado. Canal vital ativo.")
             else:
                 personagem.hp += 5; personagem.hp_max += 5; personagem.base_hp_max += 5
                 bonus_narrativo("+5 HP permanente.")
@@ -6389,7 +6940,7 @@ class DungeonGame:
             dir_str = [NOME_DIRECAO.get(d, '?') for d in livres]
             print(f"🕳️  {andar_obj.nome}")
             print(f"   Profundidade: Andar {self.andar}  |  Sala: {self.sala_no_andar}")
-            print(f"   Passagens: {', '.join(dir_str) if dir_str else 'Nenhuma (beco sem saída!)'}")
+            print(f"   Passagens visíveis: {', '.join(dir_str) if dir_str else 'Nenhuma (beco sem saída!)'}")
         elif self.regiao_atual_key is not None:
             # ── HUD: Região do nível 1 ───────────────────────────────
             regiao = self.regioes[self.regiao_atual_key]
@@ -6403,7 +6954,7 @@ class DungeonGame:
                   f"Sala atual: {self.sala_pos}")
             livres = self.regioes[self.regiao_atual_key].direcoes_livres(self.sala_pos)
             dir_str = [NOME_DIRECAO.get(d, '?') for d in livres]
-            print(f"   Passagens: {', '.join(dir_str) if dir_str else 'Nenhuma (beco sem saída!)'}")
+            print(f"   Passagens visíveis: {', '.join(dir_str) if dir_str else 'Nenhuma (beco sem saída!)'}")
         else:
             # ── HUD: Hub central ────────────────────────────────────
             print(f"🗺️  Hub Central — escolha uma direção para explorar")
@@ -6766,8 +7317,8 @@ class DungeonGame:
                 print(f"║  {linha_desc:<48}║")
             print(f"╠══════════════════════════════════════════════════╣")
             print(f"║  1 — Usar / Equipar                              ║")
-            print(f"║  2 — Examinar (desc. completa)                   ║")
-            print(f"║  3 — Deixar no chão                              ║")
+#            print(f"║  2 — Examinar (desc. completa)                   ║") # IMPLEMENTAÇÃO FUTURA
+            print(f"║  2 — Deixar no chão                              ║")
             print(f"║  0 — Voltar                                      ║")
             print(f"╚══════════════════════════════════════════════════╝")
 
@@ -6776,9 +7327,9 @@ class DungeonGame:
                 jogador.inventario.pop(cursor_idx)
                 jogador._usar_item_direto(item)
                 return 'usado_ou_equipado'
+#            elif op == '2':
+#                input("\n  Pressione ENTER para continuar...")
             elif op == '2':
-                input("\n  Pressione ENTER para continuar...")
-            elif op == '3':
                 return 'deixar'
             elif op == '0':
                 return 'cancelar'
@@ -6952,13 +7503,8 @@ class DungeonGame:
 ║  ENTER    — agir (usar/equipar/examinar/largar)  ║
 ║  q        — fechar inventário                    ║
 ║                                                  ║
-║  obs: - Múltiplos itens acumulam status mas só   ║
-║       um efeito pode ser ativado por vez.        ║
-║                                                  ║
-║        - O Arco pode ser equipado como o sétimo  ║
-║       item da build, superando a capacidade      ║
-║       máxima original                            ║
-║                                                  ║
+║  obs: - Múltiplas armas e armaduras acumulam     ║
+║       status mas só um efeito é ativado por vez. ║
 ╠══════════════════════════════════════════════════╣
 ║  ESCADAS:                                        ║
 ║  >  desce um andar (mais fundo, mais difícil)    ║
@@ -6970,8 +7516,11 @@ class DungeonGame:
 ║  NO COMBATE:                                     ║
 ║  1 — Atacar  2 — Magia/Hab  3 — Item  4 — Fugir  ║
 ╠══════════════════════════════════════════════════╣
-║  MAPA:  ● você  ! inimigo  ? item  > desce       ║
-║         < sobe  ▓ porta trancada  + estrutura    ║
+║  MAPA:  ● você  ! inimigo  ? item                ║
+║          > desce  < sobe                         ║
+║          ▓ porta trancada  ▐ ▌ porta aberta      ║
+║         ███ parede  ▐f▌ Tocha de parede          ║
+║         + estrutura                              ║
 ╚══════════════════════════════════════════════════╝
 """)
         input("  [ ENTER para continuar ]")
@@ -6981,229 +7530,111 @@ class DungeonGame:
     # ─────────────────────────────────────────────────────
     def _usar_magia_explorar(self):
         """
-        O Mago pode lançar magias durante a exploração:
-        - Míssil Mágico: atinge inimigo em range 3 (distância Manhattan)
-        - Explosão Arcana (AoE): atinge todos os inimigos visíveis em range 2
-        - Toque de Cura (Mago Azul): cura HP sem alvo
-        - Drenar Vida (Mago Negro): em inimigo visível
-        Inimigos atingidos ficam ALERTADOS e avançam imediatamente.
+        Magia na exploração — mesmo pool de _magias_disponiveis.
+        O jogador escolhe a magia e depois, se precisar de alvo, escolhe
+        entre os inimigos visíveis.
         """
         j = self.jogador
-        if j.classe != 'Mago':
+        if j.classe != "Mago":
             print("✨ Apenas Magos podem lançar magias na exploração.")
-            time.sleep(1)
-            return
-
+            time.sleep(1); return
         if j.cooldown_magia > 0:
             print(f"❌ Magia em recarga! ({j.cooldown_magia} turnos restantes)")
-            time.sleep(1)
-            return
+            time.sleep(1); return
 
-        subclasse = getattr(j, 'subclasse', None)
-        tem_almas  = any('Grimório das Almas' in eq for eq in j.equipados)
-        tem_colaps = any('Grimório do Colapso' in eq for eq in j.equipados)
+        # Inimigos visíveis no mapa
+        vision_range = 2 if (any("Tocha Suja" in eq for eq in j.equipados)
+                              or getattr(j, "lanterna_espiritual", 0) > 0) else 1
+        celulas = self.mapa._calc_visivel((self.x, self.y), vision_range)
+        inimigos_vis = [i for i in self.mapa.inimigos if i.esta_vivo() and i.pos in celulas]
 
-        # ── Lista inimigos VISÍVEIS no mapa atual ─────────────────────
-        vision_range = 1
-        if 'Tocha Suja' in getattr(j, 'equipados', []):
-            vision_range = 2
-        if getattr(j, 'lanterna_espiritual', 0) > 0:
-            vision_range = 2
-        celulas_visiveis = self.mapa._calc_visivel((self.x, self.y), vision_range)
-        inimigos_vivos = [
-            i for i in self.mapa.inimigos
-            if i.esta_vivo() and i.pos in celulas_visiveis
-        ]
-        if not inimigos_vivos and subclasse != 'Mago Azul':
-            print("✨ Não há inimigos visíveis para atacar.")
-            time.sleep(1)
-            return
+        subclasse = getattr(j, "subclasse", None)
+        precisa_alvo_externo = {"💙 Toque de Cura", "🌀 Portal de Travessia"}
 
-        # ── Montar menu de opções ──────────────────────────────────────
+        # Sincronizar _mapa_ref para que os pré-requisitos de LOS funcionem
+        j._mapa_ref = self.mapa
+        j.pos = (self.x, self.y)
+
+        # Montar menu
         limpar_tela()
         self._mostrar_hud()
         print("\n✨ MAGIA — EXPLORAÇÃO")
-        print("  1 — Míssil Mágico      (range 3, 1 alvo)")
-        if tem_almas:
-            print("  2 — Onda de Almas      (range 3, 1 alvo, +dano)")
-        print("  3 — Explosão Arcana    (range 2, TODOS os inimigos visíveis)")
-        if subclasse == 'Mago Azul':
-            print("  4 — Toque de Cura      (cura própria HP, cooldown 3t)")
-        if subclasse == 'Mago Negro' and inimigos_vivos:
-            print("  4 — Drenar Vida        (range 3, 1 alvo, rouba HP)")
-        if tem_colaps and inimigos_vivos:
-            print("  5 — Colapso            (range 3, paralisa 2 turnos)")
+
+        magias = j._magias_disponiveis(alvo=None)   # sem alvo ainda — vamos perguntar depois
+        for i, (label, _) in enumerate(magias, 1):
+            print(f"  {i} — {label}")
         print("  0 — Cancelar")
 
         sub = input(">> ").strip()
-        if sub == '0' or sub == '':
+        if sub == "0" or sub == "":
+            return
+        try:
+            idx = int(sub) - 1
+            if not (0 <= idx < len(magias)):
+                return
+        except ValueError:
             return
 
-        poder = j.calcular_poder_magico_total()
+        label, fn = magias[idx]
+        nome_curto = label.split()[1] if len(label.split()) > 1 else label
 
-        # ── 1 / 2 — Míssil Mágico ou Onda de Almas (1 alvo) ─────────
-        if sub in ('1', '2'):
-            if not inimigos_vivos:
-                print("Sem alvo."); time.sleep(1); return
-            print("\n  Inimigos detectados:")
-            alvos_magia = []
-            for idx, ini in enumerate(inimigos_vivos, 1):
-                ix, iy = ini.pos
-                dist = abs(self.x - ix) + abs(self.y - iy)
-                tem_los = self.mapa.tem_linha_de_visao(self.x, self.y, ix, iy)
-                bloq = "  ▓ parede bloqueia" if not tem_los else ""
-                fora = "  ✗ fora do alcance" if dist > 3 else ""
-                print(f"  {idx}. {ini.nome}  (dist {dist}{bloq}{fora})")
-                if dist <= 3 and tem_los:
-                    alvos_magia.append(ini)
-            sel = input("  Escolha o alvo (0=cancelar): ").strip()
-            try:
-                alvo = inimigos_vivos[int(sel) - 1]
-            except (ValueError, IndexError):
+        # Magias que não precisam de alvo: Toque de Cura e Portal
+        if "Toque de Cura" in label:
+            fn()
+            return
+        if "Portal" in label:
+            j._usar_portal(self.mapa)
+            return
+        # Explosão Arcana: usa _mapa_ref, sem seleção de alvo
+        if "Explosão" in label:
+            fn()
+            return
+
+        # Demais: precisam de alvo
+        if not inimigos_vis:
+            print("✨ Não há inimigos visíveis para atacar.")
+            time.sleep(1); return
+
+        print(f"\n  Inimigos para {nome_curto}:")
+        for k, ini in enumerate(inimigos_vis, 1):
+            ix, iy = ini.pos
+            dist = abs(self.x - ix) + abs(self.y - iy)
+            los = self.mapa.tem_linha_de_visao(self.x, self.y, ix, iy)
+            bloq = "  ▓ parede" if not los else ""
+            fora = "  ✗ fora alcance" if dist > 3 else ""
+            print(f"  {k}. {ini.nome}  (dist {dist}{bloq}{fora})")
+        sel = input("  Alvo (0=cancelar): ").strip()
+        if sel == '0' or sel == '':
+            return
+        try:
+            idx_alvo = int(sel) - 1
+            if not (0 <= idx_alvo < len(inimigos_vis)):
                 return
-            dist_alvo = abs(self.x - alvo.pos[0]) + abs(self.y - alvo.pos[1])
-            if dist_alvo > 3:
-                print(f"❌ {alvo.nome} está fora do alcance! (dist {dist_alvo}, max 3)")
-                time.sleep(1.5); return
-            if not self.mapa.tem_linha_de_visao(self.x, self.y, alvo.pos[0], alvo.pos[1]):
-                print(f"❌ Uma parede bloqueia a magia em direção a {alvo.nome}!")
-                time.sleep(1.5); return
+            alvo = inimigos_vis[idx_alvo]
+        except (ValueError, IndexError):
+            return
 
-            if sub == '2' and tem_almas:
-                dano = poder + rolar_dado(6) + 4
-                alvo.hp -= dano
-                print(f"\n👻 Onda de Almas atinge {alvo.nome}: {dano} dano necrótico!")
-                j.cooldown_magia = 4
-            else:
-                # Míssil Mágico — resistência mágica
-                rolagem = rolar_dado(4) + 3
-                dano = poder + rolagem
-                res = getattr(alvo, 'resistencia_magica', 0.0)
-                if res > 0 and random.random() < res:
-                    revert = max(1, dano // 2)
-                    alvo.hp -= (dano - revert)
-                    print(f"\n✨ Míssil Mágico! {alvo.nome} resiste parcialmente: {dano - revert} dano.")
-                else:
-                    alvo.hp -= dano
-                    print(f"\n✨ Míssil Mágico atinge {alvo.nome}: {dano} dano mágico!")
-                j.cooldown_magia = 5
+        # Substituir fn com o alvo correto
+        magias_com_alvo = j._magias_disponiveis(alvo=alvo)
+        _, fn_com_alvo = magias_com_alvo[idx]
+        resultado = fn_com_alvo()
 
-            alvo.alertado = True
+        if not resultado:
+            return
+
+        alvo.alertado = True
+        time.sleep(1)
+        if alvo.esta_vivo():
+            print(f"   ⚠️  {alvo.nome} foi atingido e avança furioso!")
             time.sleep(1)
-            if alvo.esta_vivo():
-                print(f"   ⚠️  {alvo.nome} foi atingido e avança furioso!")
-                time.sleep(1)
-                combate(j, alvo, inimigo_iniciou=False)
-            else:
-                print(f"   💀 {alvo.nome} foi destruído à distância!")
-                _loot_inimigo(j, alvo)
-                self.mapa.inimigos.remove(alvo)
-            time.sleep(1)
-
-        # ── 3 — Explosão Arcana AoE ───────────────────────────────────
-        elif sub == '3':
-            alvos_area = [
-                i for i in inimigos_vivos
-                if abs(self.x - i.pos[0]) + abs(self.y - i.pos[1]) <= 2
-                and self.mapa.tem_linha_de_visao(self.x, self.y, i.pos[0], i.pos[1])
-            ]
-            if not alvos_area:
-                print("Nenhum inimigo em range 2 para Explosão Arcana.")
-                time.sleep(1); return
-            dano_base = poder + rolar_dado(8) + 2
-            print(f"\n💥 EXPLOSÃO ARCANA — atinge {len(alvos_area)} inimigo(s)!")
-            time.sleep(0.5)
-            sobreviventes = []
-            for alvo in alvos_area:
-                dano = max(1, dano_base - random.randint(0, 3))
-                res = getattr(alvo, 'resistencia_magica', 0.0)
-                if res > 0 and random.random() < res:
-                    dano = max(1, dano // 2)
-                    print(f"   🛡️ {alvo.nome} resiste: {dano} dano.")
-                else:
-                    print(f"   🔥 {alvo.nome}: {dano} dano!")
-                alvo.hp -= dano
-                alvo.alertado = True
-                if alvo.esta_vivo():
-                    sobreviventes.append(alvo)
-                else:
-                    print(f"   💀 {alvo.nome} destruído!")
-                    _loot_inimigo(j, alvo)
+            combate(j, alvo, inimigo_iniciou=False)
+        else:
+            print(f"   💀 {alvo.nome} foi destruído à distância!")
+            _loot_inimigo(j, alvo)
             self.mapa.inimigos = [i for i in self.mapa.inimigos if i.esta_vivo()]
-            j.cooldown_magia = 6
-            time.sleep(1)
-            if sobreviventes:
-                print(f"\n   ⚠️  {len(sobreviventes)} inimigo(s) sobreviveram e avançam!")
-                time.sleep(1)
-                for alvo in sobreviventes:
-                    if alvo.esta_vivo() and j.esta_vivo():
-                        combate(j, alvo, inimigo_iniciou=True)
+        time.sleep(1)
 
-        # ── 4 — Cura (Mago Azul) ou Drenar Vida (Mago Negro) ─────────
-        elif sub == '4':
-            if subclasse == 'Mago Azul':
-                cura = 10 + poder // 2 + rolar_dado(6)
-                j.hp = min(j.hp + cura, j.hp_max)
-                print(f"\n💙 TOQUE DE CURA! +{cura} HP recuperados.")
-                j.cooldown_magia = 3
-                time.sleep(1.5)
-            elif subclasse == 'Mago Negro' and inimigos_vivos:
-                print("\n  Escolha o alvo para Drenar Vida:")
-                for idx, ini in enumerate(inimigos_vivos, 1):
-                    dist = abs(self.x - ini.pos[0]) + abs(self.y - ini.pos[1])
-                    tem_los = self.mapa.tem_linha_de_visao(self.x, self.y, ini.pos[0], ini.pos[1])
-                    bloq = "  ▓ bloqueado" if not tem_los else ""
-                    print(f"  {idx}. {ini.nome} (dist {dist}{bloq})")
-                sel = input("  Alvo (0=cancelar): ").strip()
-                try:
-                    alvo = inimigos_vivos[int(sel) - 1]
-                except (ValueError, IndexError):
-                    return
-                if abs(self.x - alvo.pos[0]) + abs(self.y - alvo.pos[1]) > 3:
-                    print("❌ Fora do alcance!"); time.sleep(1); return
-                if not self.mapa.tem_linha_de_visao(self.x, self.y, alvo.pos[0], alvo.pos[1]):
-                    print("❌ Uma parede bloqueia o fluxo vital!"); time.sleep(1.5); return
-                dano = poder + rolar_dado(8) + 2
-                alvo.hp -= dano
-                roubado = dano // 2
-                j.hp = min(j.hp + roubado, j.hp_max)
-                alvo.alertado = True
-                print(f"\n💀 DRENAR VIDA! {dano} dano em {alvo.nome}, +{roubado} HP para você!")
-                j.cooldown_magia = 4
-                time.sleep(1)
-                if alvo.esta_vivo():
-                    combate(j, alvo, inimigo_iniciou=False)
-                else:
-                    print(f"   💀 {alvo.nome} sucumbiu!")
-                    _loot_inimigo(j, alvo)
-                    self.mapa.inimigos.remove(alvo)
 
-        # ── 5 — Colapso (paralisa) ────────────────────────────────────
-        elif sub == '5' and tem_colaps and inimigos_vivos:
-            print("\n  Inimigos para Colapso:")
-            for idx, ini in enumerate(inimigos_vivos, 1):
-                dist = abs(self.x - ini.pos[0]) + abs(self.y - ini.pos[1])
-                tem_los = self.mapa.tem_linha_de_visao(self.x, self.y, ini.pos[0], ini.pos[1])
-                bloq = "  ▓ bloqueado" if not tem_los else ""
-                print(f"  {idx}. {ini.nome} (dist {dist}{bloq})")
-            sel = input("  Alvo (0=cancelar): ").strip()
-            try:
-                alvo = inimigos_vivos[int(sel) - 1]
-            except (ValueError, IndexError):
-                return
-            if abs(self.x - alvo.pos[0]) + abs(self.y - alvo.pos[1]) > 3:
-                print("❌ Fora do alcance!"); time.sleep(1); return
-            if not self.mapa.tem_linha_de_visao(self.x, self.y, alvo.pos[0], alvo.pos[1]):
-                print("❌ Uma parede fragmenta o colapso antes de atingir o alvo!"); time.sleep(1.5); return
-            alvo.efeitos_ativos['paralisado'] = {'dano': 0, 'turnos': 2}
-            alvo.alertado = True
-            print(f"\n🌀 COLAPSO! {alvo.nome} está paralisado por 2 turnos!")
-            j.cooldown_magia = 5
-            time.sleep(2)
-
-    # ─────────────────────────────────────────────────────
-    # ARCO NA EXPLORAÇÃO [b] — disparo à distância range 3
-    # ─────────────────────────────────────────────────────
     def _usar_arco_explorar(self):
         """
         Disparo de arco fora do combate.
