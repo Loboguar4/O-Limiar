@@ -6300,7 +6300,7 @@ class DungeonGame:
         _SUBCLASSE_INFO = {
             'Bárbaro':    ("O Porteiro inclina a cabeça. \"Fúria. O mais primitivo dos dons.\"",
                           "A obstinação não precisa de estratégia para ser letal."),
-            'Cavaleiro':  ("\"Disciplina e código.\"", "Tenha cuidado. O Limiar não reconhece os que seguem uma ética de batalha."),
+            'Cavaleiro':  ("\"Disciplina e código.\"", "Cuidado! O Limiar não reconhece os que seguem éticas de batalha."),
             'Mago Azul':  ("\"Luz arcana. A magia como cura e ordem.\"", "És um só com as leis da Natureza."),
             'Mago Negro': ("\"Sombras e necromantica.\"", "O preço do Puro Poder é cobrado cedo ou tarde."),
             'Ladrão':     ("\"Sobrevivência. O mais pragmático dos motores.\"", "O Limiar conhece quem sabe fugir. E o desafia."),
