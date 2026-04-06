@@ -6263,8 +6263,8 @@ class DungeonGame:
         # ── Reação do Porteiro + aplicar stats da subclasse ──────────
         _SUBCLASSE_INFO = {
             'Bárbaro':    ("O Porteiro inclina a cabeça. \"Fúria. O mais primitivo dos dons.\"",
-                          "A raiva não precisa de estratégia para ser letal."),
-            'Cavaleiro':  ("\"Disciplina e código.\"", "O Limiar respeita os que seguem uma ética de batalha."),
+                          "A obstinação não precisa de estratégia para ser letal."),
+            'Cavaleiro':  ("\"Disciplina e código.\"", "Tenha cuidado. O Limiar não reconhece os que seguem uma ética de batalha."),
             'Mago Azul':  ("\"Luz arcana. A magia como cura e ordem.\"", "És um só com as leis da Natureza."),
             'Mago Negro': ("\"Sombras e necromantica.\"", "O preço do Puro Poder é cobrado cedo ou tarde."),
             'Ladrão':     ("\"Sobrevivência. O mais pragmático dos motores.\"", "O Limiar conhece quem sabe fugir. E o desafia."),
@@ -6392,12 +6392,12 @@ class DungeonGame:
                     "que existe para essa pergunta.",
                     "",
                     "Também é a mais perigosa de se receber.",
-                    "O conhecimento necrótico afia vossa magia.",
+                    "O conhecimento oculto afia vossa magia.",
                 ], pausa=3)
                 personagem.ataque_bonus += 2
                 personagem.base_ataque_bonus += 2
-                bonus_narrativo("+2 bônus de ataque mágico. A necromantica afia o feitiço.")
-            elif detectar(resp_segredo, {'origem', 'criação', 'começo', 'princ', 'deus', 'divino', 'cosmic', 'cósmic', 'cosmos', 'segredo do mundo'}):
+                bonus_narrativo("+2 bônus de ataque mágico.")
+            elif detectar(resp_segredo, {'origem', 'criação', 'começo', 'princ', 'deus', 'divino', 'cosmic', 'cósmic', 'cosmos', 'segredo do mundo', 'limite', 'mundo', 'limiar'}):
                 porteiro_curto([
                     "A origem de tudo.",
                     "",
@@ -6827,7 +6827,7 @@ class DungeonGame:
 
             op_fe = [
                 "Sim — há forças além da compreensão humana",
-                "Depende — algumas coisas têm aparência divina",
+                "Depende — algo como você?",
                 "Não — apenas o que posso tocar existe",
                 "Não sei — vim ao Limiar para descobrir",
             ]
