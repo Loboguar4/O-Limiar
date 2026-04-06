@@ -83,7 +83,7 @@ Cada descida cria um `AndarLabirinto` independente com topologia em árvore. Esc
 | 1–2 | Ratos, Goblins, Esqueletos, Vermes |
 | 3–4 | Orcs, Arqueiros das Trevas, Carnicais |
 | 5–7 | Gárgulas, Campeões da Morte, Sacerdotes, Arautos |
-| 8+ | Cavaleiros Sem Nome, Dracolichis, Serpentes Abissais, Espectros |
+| 8+ | Cavaleiros Sem Nome, Dracoliches, Serpentes Abissais, Espectros |
 | Andar 7+ | **Modo Extremo** ativado |
 | Andar 14+ | Escadaria final — **Olho de Vecna** pode surgir |
 
