@@ -1014,6 +1014,17 @@ class Personagem:
                 if dados['turnos'] <= 0:
                     remover.append(efeito)
 
+        # Proteção Arcana — dict com 'bonus' e 'turnos', sem dano
+        if isinstance(self.efeitos_ativos.get('protecao'), dict):
+            prot = self.efeitos_ativos['protecao']
+            prot['turnos'] -= 1
+            if prot['turnos'] > 0:
+                print(f"🛡️ Proteção Arcana ativa ({prot['turnos']} turnos restantes).")
+            else:
+                self.ac = max(self.base_ac, self.ac - prot['bonus'])
+                del self.efeitos_ativos['protecao']
+                print(f"🛡️ Proteção Arcana dissipada (-{prot['bonus']} CA).")
+
         # Cegueira (flag, não dict) — não causa dano mas decrementa
         if 'cegueira' in self.efeitos_ativos and isinstance(self.efeitos_ativos['cegueira'], int):
             self.efeitos_ativos['cegueira'] -= 1
@@ -1711,8 +1722,9 @@ class Personagem:
                 return
             bonus = int(item.split('+')[1]) if '+' in item else 2
             self.ac += bonus
-            self.efeitos_ativos['protecao'] = 8
-            self.efeitos_ativos['valor_protecao'] = bonus
+            # Armazenar como dict — atualizar_efeitos() só decrementa inteiros,
+            # nunca tocará neste efeito; o decremento e expiração são manuais.
+            self.efeitos_ativos['protecao'] = {'bonus': bonus, 'turnos': 8}
             print(f"📜 As runas do pergaminho incendeiam e desaparecem!")
             time.sleep(0.8)
             print(f"   🛡️ PROTEÇÃO ARCANA: +{bonus} CA por 8 rodadas.")
@@ -2698,11 +2710,6 @@ class Personagem:
             elif efeito == 'forca':
                 print("💪 O efeito da Poção de Força acabou!")
                 self.bonus_temporario = 0
-            elif efeito == 'protecao':
-                bonus = self.efeitos_ativos.pop('valor_protecao', None)
-                if bonus:
-                    self.ac -= bonus
-                    print(f"🛡️ Proteção acabou (-{bonus} CA).")
             elif efeito == 'invisibilidade':
                 self.invisivel = False
                 print("👁️ Sua invisibilidade desvaneceu.")
