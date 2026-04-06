@@ -642,7 +642,7 @@ class Personagem:
         if elmo_ativo:
             msgs_elmo = [
                 f"🪖 Você investe com o Elmo da Fúria contra {alvo.nome}!",
-                f"🪖 Cabeçada brutal! Os espinhos do elmo miram {alvo.nome}!",
+                f"🪖 Cabeçada brutal! Os chifres do elmo miram {alvo.nome}!",
                 f"🪖 Investida agressiva — você usa a cabeça literalmente!",
             ]
             print(random.choice(msgs_elmo))
@@ -1685,6 +1685,25 @@ class Personagem:
             self.efeitos_ativos['berserker'] = 6
             print(f"💢 Berserker: +{bonus} ataque por 6 turnos.")
 
+        elif item == 'Tomo de Sabedoria Antiga':
+            if getattr(self, 'subclasse', None) == 'Bárbaro':
+                print("📘 O Bárbaro encara o tomo com desprezo.")
+                time.sleep(0.5)
+                print("   \"Palavras em papel não me fazem mais forte.\"")
+                print("   ↩️  O tomo volta ao inventário.")
+                time.sleep(1.5)
+                self.inventario.append(item)
+            elif self.classe == 'Mago':
+                self.ac += 3
+                self.base_ac += 3
+                print("📘 O Mago absorve o conhecimento — CA +3!")
+                time.sleep(1.5)
+            else:
+                self.ac += 1
+                self.base_ac += 1
+                print("📘 Você absorve o que pode do tomo — CA +1.")
+                time.sleep(1.5)
+
         elif item.startswith('Pergaminho de Proteção'):
             if self.classe != 'Mago':
                 print("📜 Este pergaminho só pode ser lido por Magos. As runas se apagam ao seu toque.")
@@ -1697,6 +1716,7 @@ class Personagem:
             print(f"📜 As runas do pergaminho incendeiam e desaparecem!")
             time.sleep(0.8)
             print(f"   🛡️ PROTEÇÃO ARCANA: +{bonus} CA por 8 rodadas.")
+            time.sleep(1.5)
 
         elif item.startswith('Anel da Vitalidade'):
             bonus = int(item.split('+')[1]) if '+' in item else 1
@@ -1751,8 +1771,8 @@ class Personagem:
             self.gerenciar_equipamento(item)
             print(f"🔥 Machado Flamejante equipado! +{bonus+2} ataque, +{bonus+2} dano + dano de fogo.")
 
-        elif item.startswith('Elmo da Fúria') or item.startswith('Elmo Espinhoso'):
-            SLOT_ELMO = ['Elmo Espinhoso', 'Elmo da Fúria', 'Elmo do Caçador de Monstros']
+        elif item.startswith('Elmo da Fúria'):
+            SLOT_ELMO = ['Elmo da Fúria', 'Elmo do Caçador de Monstros', 'Chapéu Cósmico']
             if not self._trocar_slot(SLOT_ELMO, item, 'Elmo'):
                 return
             bonus = int(item.split('+')[1]) if '+' in item else 1
@@ -1764,8 +1784,6 @@ class Personagem:
             self.gerenciar_equipamento(item)
             print("🪖 Você veste o Elmo com um clique metálico...")
             time.sleep(0.8)
-            print(f"   Os espinhos arranham sua têmpora. Você sente o instinto de investir.")
-            time.sleep(0.4)
             print(f"   ⚔️  +{bonus} ataque/dano por {dur} ataques  |  -1 CA")
 
         elif item.startswith('Cajado do Fogo Descendente'):
@@ -1805,18 +1823,23 @@ class Personagem:
                 self.inventario.append(item)
 
         elif item == 'Chapéu Cósmico':
-            SLOT_ELMO = ['Elmo Espinhoso', 'Elmo da Fúria', 'Elmo do Caçador de Monstros', 'Chapéu Cósmico']
-            if not self._trocar_slot(SLOT_ELMO, item, 'Chapéu/Elmo'):
-                return
-            self.gerenciar_equipamento(item)
-            self.atualizar_atributos_equipamento()
-            print("🌌 Chapéu Cósmico vestido...")
-            time.sleep(0.8)
-            print("   O tecido parece uma janela para um céu sem fim.")
-            time.sleep(0.5)
-            print("   • 25% de desviar qualquer ataque ou magia para o vazio cósmico.")
-            print("   • +1 CA.")
-            time.sleep(1.5)
+            SLOT_ELMO = ['Elmo da Fúria', 'Elmo do Caçador de Monstros', 'Chapéu Cósmico']
+            if self.classe == 'Mago':
+                if not self._trocar_slot(SLOT_ELMO, item, 'Chapéu/Elmo'):
+                    return
+                self.gerenciar_equipamento(item)
+                self.atualizar_atributos_equipamento()
+                print("🌌 Chapéu Cósmico vestido...")
+                time.sleep(0.8)
+                print("   O tecido parece uma janela para um céu sem fim.")
+                time.sleep(0.5)
+                print("   • 25% de desviar qualquer ataque ou magia para o vazio cósmico.")
+                print("   • +1 CA.")
+                time.sleep(1.5)
+            else:
+                print("❌ Só magos podem ver o que há no interior do chapéu.")
+                self.inventario.append(item)
+                time.sleep(1.5)
 
         elif item == 'Botas do Silêncio':
             botas_slot = ['Botas do Silêncio', 'Botas do Caçador de Monstros', 'Botas Encantadas']
@@ -1853,7 +1876,7 @@ class Personagem:
             time.sleep(1.5)
 
         elif item == 'Elmo do Caçador de Monstros':
-            SLOT_ELMO = ['Elmo Espinhoso', 'Elmo da Fúria', 'Elmo do Caçador de Monstros']
+            SLOT_ELMO = ['Elmo da Fúria', 'Elmo do Caçador de Monstros', 'Chapéu Cósmico']
             if not self._trocar_slot(SLOT_ELMO, item, 'Elmo'):
                 return
             self.gerenciar_equipamento(item)
@@ -2247,6 +2270,9 @@ class Personagem:
                 self.inventario.append(item)
 
         elif item == 'Coroa dos Condenados':
+            SLOT_ELMO = ['Elmo da Fúria', 'Elmo do Caçador de Monstros', 'Chapéu Cósmico', 'Coroa dos Condenados', 'Coroa de Espinhos de Ferro']
+            if not self._trocar_slot(SLOT_ELMO, item, 'Elmo'):
+                return
             self.gerenciar_equipamento(item)
             self.efeitos_ativos['coroa_atrai'] = 999  # permanente — inimigos preferem atacar o portador
             print("👑 COROA DOS CONDENADOS equipada!")
@@ -2486,6 +2512,9 @@ class Personagem:
             time.sleep(1.5)
 
         elif item == 'Coroa de Espinhos de Ferro':
+            SLOT_ELMO = ['Elmo da Fúria', 'Elmo do Caçador de Monstros', 'Chapéu Cósmico', 'Coroa dos Condenados', 'Coroa de Espinhos de Ferro']
+            if not self._trocar_slot(SLOT_ELMO, item, 'Elmo'):
+                return
             self.gerenciar_equipamento(item)
             print("👑 COROA DE ESPINHOS DE FERRO forçada na cabeça...")
             time.sleep(0.5)
@@ -5850,12 +5879,12 @@ class DungeonGame:
             porteiro_curto([
                 "Um sonho.",
                 "",
-                "Então viestes pelo maior dos tesouros.",
+                "Então viestes pelo maior dos tesouros. Viestes pelo Mestre.",
                 "O segredo das masmorras que transitam entre",
                 "o material e o imaterial...",
             ], pausa=2.5)
-            print()
-            resp_mestre = perguntar("Mestre? Dissestes Mestre?", pausa_antes=0.5)
+            print(f"\n\t{nome}: ... Mestre?")
+            time.sleep(2)
             porteiro_curto([
                 "Sim.",
                 "",
@@ -6580,7 +6609,8 @@ class DungeonGame:
         elif sc == 'Mago Azul':
             itens_base = ['poção de cura', 'Botas Encantadas', 'antídoto']
             porteiro_curto([
-                "Mago de Luz Arcana. A magia  protege e restaura.",
+                "Mago de Luz Arcana. A magia protege e restaura.",
+                "Mas também queima e congela.",
                 "Toque de Cura já está em vosso arsenal.",
             ], pausa=2)
             op_extra = [
@@ -6670,7 +6700,7 @@ class DungeonGame:
 
         bonus_narrativo(f"Equipamento base registrado e equipado: {', '.join(itens_base)}.")
 
-        # VERIFICAR
+        # VERIFICAR FUTURAMENTE QUANDO INPLEMENTAR ARCO COMUM
         # ── Flechas iniciais para quem tem Arco Élfico ────────────────
         if personagem.arma and personagem.arma.get('nome') in ('Arco Élfico +1', 'Arco da Ruína +1'):
             personagem.flechas = 20
