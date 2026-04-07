@@ -53,6 +53,7 @@
 #   Botas: Silêncio / Caçador / Encantadas — apenas 1 por build.
 #   Elmo:  Espinhoso / Caçador / Cósmico — apenas 1 por build.
 #   Armadura: Mithril / Couro / Veterano — apenas 1 por build.
+#   Capa: Couro / Encantada / das Sombras - apenas 1 por build.
 #   _trocar_slot() ignora itens quebrados (slot liberado para novo).
 #
 # ELMO DA FÚRIA — CICLO COMPLETO:
@@ -1253,13 +1254,13 @@ class Personagem:
         if not self._verificar_prereqs_magia(alvo):
             return False
         poder = self.calcular_poder_magico_total()
-        dano = poder + rolar_dado(8) + 2
+        dano = poder + rolar_dado(4) + 2
         alvo.hp -= dano
         roubado = dano // 2
         self.hp = min(self.hp + roubado, self.hp_max)
         print(f"💀 DRENAR VIDA! {dano} de dano necrótico em {alvo.nome} — +{roubado} HP!")
         time.sleep(1)
-        self.cooldown_magia = 4
+        self.cooldown_magia = 5
         return True
 
     def _usar_maldicao(self, alvo):
@@ -2033,6 +2034,9 @@ class Personagem:
             print(f"🗡️ Adaga Envenenada equipada! +{bonus+1} ataque, +{max(1,bonus)} dano. 70% de envenenar.")
 
         elif item == 'Manto das Sombras':
+            SLOT_CAPA = ['Manto das Sombras', 'Capa de Couro', 'Capa Encantada']
+            if not self._trocar_slot(SLOT_CAPA, item, 'Manto/Capa'):
+                return
             self.gerenciar_equipamento(item)
             print("🌑 Manto das Sombras equipado! Chance de fuga 70%. Invisibilidade dura +2 turnos.")
 
@@ -2231,6 +2235,9 @@ class Personagem:
             time.sleep(1.5)
 
         elif item == 'Capa de Couro':
+            SLOT_CAPA = ['Manto das Sombras', 'Capa de Couro', 'Capa Encantada']
+            if not self._trocar_slot(SLOT_CAPA, item, 'Capa'):
+                return
             self.gerenciar_equipamento(item)
             print("🧥 Capa de Couro vestida. +1 CA.")
             time.sleep(1.5)
@@ -2459,6 +2466,9 @@ class Personagem:
             time.sleep(1)
 
         elif item == 'Capa Encantada':
+            SLOT_CAPA = ['Manto das Sombras', 'Capa de Couro', 'Capa Encantada']
+            if not self._trocar_slot(SLOT_CAPA, item, 'Capa'):
+                return
             self.gerenciar_equipamento(item)
             print("🧥 Capa Encantada vestida. +2 CA + 20% resistência a magia inimiga.")
 
@@ -7540,7 +7550,7 @@ class DungeonGame:
 ║  ENTER    — agir (usar/equipar/examinar/largar)  ║
 ║  q        — fechar inventário                    ║
 ║                                                  ║
-║  obs: - Múltiplas armas e armaduras acumulam     ║
+║  obs: - Múltiplas armas e acessórios acumulam    ║
 ║       status mas só um efeito é ativado por vez. ║
 ╠══════════════════════════════════════════════════╣
 ║  ESCADAS:                                        ║

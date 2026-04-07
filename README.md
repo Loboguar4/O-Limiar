@@ -223,7 +223,7 @@ Inimigos fora da luz não aparecem na lista de alvos de arco ou magia.
 - **Elmo do Caçador de Monstros** — +2 CA permanente; 25% dissipar efeitos de controle mágico
 - **Botas Encantadas** — exclusivo Magos; +8% poder mágico total
 
-**Slots exclusivos por categoria:** Botas (1 de 3 tipos), Elmo (1 de 3 tipos), Armadura (1 de 3 tipos). `_trocar_slot()` ignora itens quebrados.
+**Slots exclusivos por categoria:** Botas , Elmo/Chapéu, Armadura e Capa. `_trocar_slot()` ignora itens quebrados.
 
 **Elmo da Fúria — ciclo completo:** durabilidade 3–5 ataques (não expira entre turnos). Investida Feroz usa bônus do elmo. Ao expirar: elmo destruído e removido da build.
 
