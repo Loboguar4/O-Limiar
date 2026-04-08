@@ -1777,6 +1777,7 @@ class Personagem:
                 return
             self.gerenciar_equipamento(item)
             print(f"🛡️ Armadura de Mithril equipada!")
+            time.sleep(1.5)
 
         elif item.startswith('Machado Anão Flamejante'):
             bonus = int(item.split('+')[1])
@@ -6610,7 +6611,7 @@ class DungeonGame:
             extras = ['Elmo da Fúria +2', 'Espada Curta +1', 'Poção de Sangue', 'explosivo arremessável']
 
         elif sc == 'Cavaleiro':
-            itens_base = ['poção de cura', 'Espada Longa +1', 'Armadura do Veterano']
+            itens_base = ['poção de cura', 'Espada Longa +1', 'Armadura do Veterano', 'Pó de Gelo', 'Erva do Sono', 'Rede de Caça']
             porteiro_curto([
                 "Cavaleiro. Disciplina, código e aço refinado.",
                 "Podeis ler tomos — o conhecimento também é armadura.",
