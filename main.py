@@ -320,6 +320,10 @@ def limpar_tela():
 # SISTEMA DE PESO
 # =====================================================================
 
+# Set global de inimigos únicos já spawados na run atual.
+# Gerenciado pelo DungeonGame e consultado por _popular_inimigos.
+_unicos_spawados: set = set()
+
 # Capacidade de carga por classe (kg)
 CAPACIDADE_PESO = {
     "Guerreiro": 21.0,
@@ -426,6 +430,8 @@ PESOS_ITENS = {
     'Cajado do Fogo Descendente':   1.6,
     'Códice dos Segredos Elementais': 1.8,
     'Chapéu Cósmico':               0.5,
+    'Cristal da Vingança Dracônica': 0.2,
+    'Presa Abissal':                 0.5,
     'Diário Perdido':               0.3,
 }
 
@@ -518,7 +524,10 @@ DESCRICOES_ITENS = {
     'Cajado do Fogo Descendente':   "Só Magos. Chamas solares condensadas. Dano elemental de fogo em ataques. Com Códice: desbloqueia Bola de Fogo.",
     'Códice dos Segredos Elementais': "Grimório elemental. Desbloqueia magias de acordo com cajados/manoplas equipados: Bola de Fogo, Relâmpago, Inverno Netuniano.",
     'Chapéu Cósmico':               "Chapéu pontudo e peculiar. Seu tecido parece uma janela para um céu estrelado. 25% de desviar ataques e magias para o vazio cósmico.",
+    'Cristal da Vingança Dracônica': "Consumível lendário. Porta a alma vingativa do Dracolich. Use em combate contra o Olho de Vecna para enfraquecê-lo permanentemente.",
+    'Presa Abissal':                 "Arma da lendária Serpente Abissal. Aplica veneno duplo escalável em cada ataque.",
 }
+
 
 
 def peso_item(nome_item):
@@ -706,15 +715,28 @@ class Personagem:
 
         # ── Decrementar durabilidade do Elmo da Fúria ─────────────────
         if isinstance(self.efeitos_ativos.get('elmo_furia'), dict):
+            import re as _re
             ef = self.efeitos_ativos['elmo_furia']
             ef['ataques'] -= 1
+            # Atualizar [dur:N] no nome em equipados
+            for i, eq in enumerate(self.equipados):
+                if 'Elmo da Fúria' in eq or 'Elmo Espinhoso' in eq:
+                    base = _re.sub(r'\s*\[dur:\d+\]', '', eq)
+                    if ef['ataques'] > 0:
+                        self.equipados[i] = f'{base} [dur:{ef["ataques"]}]'
+                    break
             if ef['ataques'] == 1:
                 print("🪖 Os espinhos do Elmo estão cedendo... (último ataque!)")
             if ef['ataques'] <= 0:
                 self.bonus_temporario = 0
-                self.atualizar_atributos_equipamento()
+                nome_elmo = next(
+                    (eq for eq in self.equipados
+                     if 'Elmo da Fúria' in eq or 'Elmo Espinhoso' in eq), None)
+                if nome_elmo:
+                    self.equipados.remove(nome_elmo)
                 del self.efeitos_ativos['elmo_furia']
-                print("🪖 Os espinhos do Elmo se partiram no impacto! Bônus esgotado.")
+                self.atualizar_atributos_equipamento()
+                print("🪖 Os espinhos do Elmo se partiram! Elmo destruído.")
 
         # ============================
         # ⚡🔥🐍 EFEITOS ESPECIAIS DE ITENS
@@ -827,6 +849,13 @@ class Personagem:
                 print(f"🔥 Chama Solar: +{dano_extra} ({int(porcentagem*100)}%){' [CRÍTICO ELEMENTAL!]' if crit_elemental else ''}!")
                 alvo.efeitos_ativos['fogo'] = {'dano': dano_extra, 'turnos': 2}
                 print(f"🔥 {alvo.nome} queimará {dano_extra} por 2 turno(s)!")
+
+            # ── Presa Abissal ─────────────────────────────────────────
+            elif self.arma.get('especial') == 'veneno_abissal':
+                bonus = self.arma.get('bonus', 1)
+                dano_v = rolar_dado(5) * 2 + bonus
+                alvo.efeitos_ativos['veneno_duplo'] = {'dano': dano_v, 'turnos': 4}
+                print(f"☠️  VENENO ABISSAL! {dano_v} HP/turno por 4 turnos!")
 
             # ── Espada Fantasma ───────────────────────────────────────
             elif self.arma['nome'] == 'Espada Fantasma':
@@ -1484,7 +1513,7 @@ class Personagem:
             'Adaga Envenenada','Manoplas do Trovão','Orbe Mental de Vecna',
             'Cajado de Osso','Lâmina Drenante','Machado do Sangramento',
             'Espada Fantasma','Machado de Guerra','Espada dos Mártires',
-            'Lâmina Especular',
+            'Lâmina Especular','Presa Abissal','Cajado do Fogo Descendente',
         )
         armas_eq    = [eq for eq in self.equipados  if any(eq.startswith(p) for p in PREFIXOS_ARMA)]
         armas_bolsa = [it for it in self.inventario if any(it.startswith(p) for p in PREFIXOS_ARMA)]
@@ -1654,6 +1683,27 @@ class Personagem:
             time.sleep(1.5)
             return True
 
+        elif item == 'Cristal da Vingança Dracônica':
+            self.inventario.pop(idx)
+            if inimigo.nome == 'Olho de Vecna':
+                print("💎 Você quebra o Cristal da Vingança Dracônica!")
+                time.sleep(0.8)
+                print("   A alma do Dracolich emerge rugindo e rasga o Olho com garras espectrais!")
+                time.sleep(1)
+                reducao = max(10, inimigo.hp_max // 4)
+                inimigo.hp -= reducao
+                inimigo.ac  = max(1, inimigo.ac - 4)
+                inimigo.ataque_bonus = max(0, inimigo.ataque_bonus - 3)
+                inimigo.efeitos_ativos['maldicao'] = 5
+                print(f"   ☠️  {reducao} de dano direto! CA -4, ataque -3, maldição 5 turnos!")
+                print(f"   O Olho de Vecna está ENFRAQUECIDO.")
+                time.sleep(1.5)
+            else:
+                print("💎 O Cristal pulsa mas não reage a este inimigo.")
+                print("   Guarde-o para o Olho de Vecna.")
+                self.inventario.append(item)   # devolver
+            return True
+
         else:
             # Itens sem alvo — usa normalmente
             self.inventario.pop(idx)
@@ -1786,19 +1836,33 @@ class Personagem:
             print(f"🔥 Machado Flamejante equipado! +{bonus+2} ataque, +{bonus+2} dano + dano de fogo.")
 
         elif item.startswith('Elmo da Fúria'):
+            if '(quebrado)' in item:
+                print("🪖 Este elmo está quebrado — não pode ser reequipado.")
+                time.sleep(1.5)
+                self.inventario.append(item)
+                return
             SLOT_ELMO = ['Elmo da Fúria', 'Elmo do Caçador de Monstros', 'Chapéu Cósmico']
             if not self._trocar_slot(SLOT_ELMO, item, 'Elmo'):
                 return
-            bonus = int(item.split('+')[1]) if '+' in item else 1
-            dur = random.randint(3, 5)   # durabilidade: 3–5 ataques
+            import re as _re
+            bonus_raw = item.split('+')[1].split()[0] if '+' in item else '1'
+            bonus = int(bonus_raw)
+            # Ler durabilidade do sufixo [dur:N] se item já foi usado antes
+            m_dur = _re.search(r'\[dur:(\d+)\]', item)
+            dur = int(m_dur.group(1)) if m_dur else random.randint(3, 5)
             self.bonus_temporario = bonus
             self.ac -= 1
-            # Usar dict para durabilidade — não decrementado por atualizar_efeitos (sem chave 'turnos')
             self.efeitos_ativos['elmo_furia'] = {'bonus': bonus, 'ataques': dur}
-            self.gerenciar_equipamento(item)
+            # Guardar durabilidade NO NOME em equipados — ex: "Elmo da Fúria +2 [dur:4]"
+            base_nome = _re.sub(r'\s*\[dur:\d+\]', '', item)
+            nome_equipado = f'{base_nome} [dur:{dur}]'
+            self.gerenciar_equipamento(nome_equipado)
             print("🪖 Você veste o Elmo com um clique metálico...")
             time.sleep(0.8)
-            print(f"   ⚔️  +{bonus} ataque/dano por {dur} ataques  |  -1 CA")
+            if m_dur:
+                print(f"   ⚔️  +{bonus} ataque/dano  |  ⏳ {dur} ataques restantes  |  -1 CA")
+            else:
+                print(f"   ⚔️  +{bonus} ataque/dano  |  ⏳ {dur} ataques  |  -1 CA")
 
         elif item.startswith('Cajado do Fogo Descendente'):
             bonus = int(item.split('+')[1]) if '+' in item else 0
@@ -2441,11 +2505,13 @@ class Personagem:
             print("🥊 Luvas de Combate calçadas. +1 ataque.")
 
         elif item == 'Talismã Protetor':
-            # Usar string como sentinela — atualizar_efeitos() só decrementa inteiros
+            # Equipa — permanece na build até absorver 1 crítico e quebrar
+            self.gerenciar_equipamento(item)
             self.efeitos_ativos['talisma_protetor'] = 'ativo'
             print("🔮 O Talismã Protetor pulsa com proteção antiga...")
             time.sleep(0.8)
             print("   ✅ O próximo acerto crítico (dano > 10) será reduzido a 3 de dano.")
+            print("   O Talismã permanece equipado até ser consumido.")
             time.sleep(2)
 
         elif item == 'Pó de Gelo':
@@ -2476,6 +2542,26 @@ class Personagem:
         # ========================
         # RAROS v2 — NOVOS
         # ========================
+        elif item.startswith('Presa Abissal'):
+            bonus = int(item.split('+')[1]) if '+' in item else 1
+            self.arma = {
+                'nome': 'Presa Abissal',
+                'bonus': bonus + 2,
+                'dano':  bonus + 3,
+                'especial': 'veneno_abissal'
+            }
+            self.gerenciar_equipamento(item)
+            print(f"🐍 PRESA ABISSAL equipada! +{bonus+2} ataque, +{bonus+3} dano.")
+            print(f"   ☠️  Cada ataque aplica veneno duplo escalável (dano dobrado).")
+            time.sleep(1.5)
+
+        elif item == 'Cristal da Vingança Dracônica':
+            # Consumível — devolver ao inventário; uso real acontece em combate contra o Olho
+            self.inventario.append(item)
+            print("💎 Cristal da Vingança Dracônica guardado.")
+            print("   Use-o em combate contra o Olho de Vecna para enfraquecê-lo.")
+            time.sleep(1.5)
+
         elif item.startswith('Espada dos Mártires'):
             bonus = int(item.split('+')[1]) if '+' in item else 3
             self.arma = {'nome': 'Espada dos Mártires', 'bonus': bonus, 'dano': bonus + 1}
@@ -2626,10 +2712,12 @@ class Personagem:
         return True
 
     def _trocar_slot(self, slot_nomes, item_novo, label_slot):
-        """Verifica slot exclusivo. Se ocupado, pergunta troca.
+        """Verifica slot exclusivo. Se ocupado por item não-quebrado, pergunta troca.
+        Itens quebrados não bloqueiam o slot.
         Retorna True se pode prosseguir, False se cancelado."""
         atual = next((eq for eq in self.equipados
-                      if any(s in eq for s in slot_nomes)), None)
+                      if any(s in eq for s in slot_nomes)
+                      and '(quebrado)' not in eq), None)
         if not atual:
             return True
         print(f"   Você já usa: {atual}")
@@ -2728,6 +2816,32 @@ class Personagem:
                 print(f"⚠️ O efeito '{efeito}' acabou.")
 
     def atualizar_atributos_equipamento(self):
+        # ── Elmo da Fúria: se saiu da build, cancelar efeito imediatamente ──
+        if isinstance(self.efeitos_ativos.get('elmo_furia'), dict):
+            elmo_na_build = next(
+                (eq for eq in self.equipados
+                 if 'Elmo da Fúria' in eq or 'Elmo Espinhoso' in eq),
+                None
+            )
+            if not elmo_na_build:
+                import re as _re
+                ef = self.efeitos_ativos['elmo_furia']
+                dur_restante = ef.get('ataques', 1)
+                # Gravar durabilidade no item que voltou para a bolsa
+                for i, inv_item in enumerate(self.inventario):
+                    if ('Elmo da Fúria' in inv_item or 'Elmo Espinhoso' in inv_item) and '(quebrado)' not in inv_item:
+                        base = _re.sub(r'\s*\[dur:\d+\]', '', inv_item)
+                        self.inventario[i] = f'{base} [dur:{dur_restante}]'
+                        break
+                self.bonus_temporario = 0
+                del self.efeitos_ativos['elmo_furia']
+                print("🪖 Elmo da Fúria desequipado — durabilidade preservada no item.")
+            else:
+                # Sincronizar dict com o [dur:N] que está no nome em equipados
+                import re as _re
+                m = _re.search(r'\[dur:(\d+)\]', elmo_na_build)
+                if m:
+                    self.efeitos_ativos['elmo_furia']['ataques'] = int(m.group(1))
         self.ac = self.base_ac
         self.hp_max = self.base_hp_max
         self.ataque_bonus = self.base_ataque_bonus
@@ -2772,6 +2886,11 @@ class Personagem:
             elif 'Cajado do Fogo Descendente' in item:
                 ataque_bonus += bonus
                 dano_bonus   += max(1, bonus)
+            elif 'Presa Abissal' in item:
+                ataque_bonus += bonus
+                dano_bonus   += max(1, bonus)
+            elif 'Cristal da Vingança Dracônica' in item:
+                pass   # consumível — sem bônus de atributo
             elif 'Códice dos Segredos Elementais' in item:
                 pass   # passivo — magias desbloqueadas via _magias_disponiveis
             elif 'Chapéu Cósmico' in item:
@@ -3078,11 +3197,6 @@ class Inimigo:
             del alvo.efeitos_ativos['ressurreicao']
             print(f"✨ A RUNA DE RESSURREIÇÃO brilha! {alvo.nome} permanece com 1 HP!")
 
-        if (dano > 10 and alvo.efeitos_ativos.get('talisma_protetor')):
-            print(f"🔮 TALISMÃ PROTETOR! Crítico absorvido — dano reduzido a 3!")
-            dano = 3
-            del alvo.efeitos_ativos['talisma_protetor']
-
         # Espectro: resistência física 40%
         if getattr(self, '_resistencia_fisica', False) and random.random() < 0.40:
             dano_red = max(1, dano // 2)
@@ -3145,7 +3259,7 @@ class RatoCarniceiro(InimigoEspecial):
             nome="Rato Carniceiro",
             hp=4 + dificuldade,
             ac=10 + dificuldade // 4,
-            ataque_bonus=2 + dificuldade // 3,
+            ataque_bonus=2 + dificuldade,
             dano_lados=4,
             pos=pos, tipo='comum')
 
@@ -3180,7 +3294,7 @@ class GoblinFurtivo(InimigoEspecial):
             nome="Goblin Furtivo",
             hp=7 + dificuldade,
             ac=11 + dificuldade // 4,
-            ataque_bonus=3 + dificuldade // 3,
+            ataque_bonus=3 + dificuldade,
             dano_lados=5,
             pos=pos, tipo='comum')
         self._fugiu = False
@@ -3222,9 +3336,9 @@ class EsqueletoGuardiao(InimigoEspecial):
     def __init__(self, pos, dificuldade=1):
         super().__init__(
             nome="Esqueleto Guardião",
-            hp=12 + dificuldade,
+            hp=10 + dificuldade,
             ac=14 + dificuldade // 3,
-            ataque_bonus=4 + dificuldade // 3,
+            ataque_bonus=4 + dificuldade,
             dano_lados=5,
             pos=pos, tipo='morto-vivo')
         self._remontou = False
@@ -3267,9 +3381,9 @@ class OrcBerserker(InimigoEspecial):
     def __init__(self, pos, dificuldade=10):
         super().__init__(
             nome="Orc Berserker",
-            hp=18 + dificuldade * 2,
+            hp=12 + dificuldade,
             ac=13 + dificuldade // 4,
-            ataque_bonus=5 + dificuldade // 3,
+            ataque_bonus=5 + dificuldade,
             dano_lados=8,
             pos=pos, tipo='guerreiro')
         self._furia_ativa = False
@@ -3312,9 +3426,9 @@ class ArqueiroDasTrevas(InimigoEspecial):
     def __init__(self, pos, dificuldade=10):
         super().__init__(
             nome="Arqueiro das Trevas",
-            hp=13 + dificuldade,
-            ac=12 + dificuldade // 4,
-            ataque_bonus=6 + dificuldade // 3,
+            hp=9 + dificuldade,
+            ac=12 + dificuldade,
+            ataque_bonus=6 + dificuldade,
             dano_lados=6,
             pos=pos, tipo='morto-vivo')
         self.arma_loot = f'Arco da Ruína +{1 + dificuldade // 4}'
@@ -3347,7 +3461,7 @@ class VermedaEntranhas(InimigoEspecial):
     def __init__(self, pos, dificuldade=10):
         super().__init__(
             nome="Verme das Entranhas",
-            hp=10 + dificuldade * 2,
+            hp=8 + dificuldade * 2,
             ac=11 + dificuldade // 3,
             ataque_bonus=4 + dificuldade // 2,
             dano_lados=5,
@@ -3380,12 +3494,12 @@ class CarnicaldaProfundeza(InimigoEspecial):
     def __init__(self, pos, dificuldade=10):
         super().__init__(
             nome="Carniçal Profano",
-            hp=15 + dificuldade * 2,
+            hp=11 + dificuldade,
             ac=13 + dificuldade // 3,
-            ataque_bonus=5 + dificuldade // 2,
+            ataque_bonus=5 + dificuldade,
             dano_lados=7,
             pos=pos, tipo='venenoso_duplo')
-        self.arma_loot = f'Lâmina Sombria +{1 + dificuldade // 4}'
+        self.arma_loot = f'Adaga Envenenada +{1 + dificuldade // 4}'
 
     def atacar(self, alvo):
         if getattr(alvo, 'invisivel', False):
@@ -3420,11 +3534,12 @@ class SacerdoteDevedor(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Sacerdote Devorador",
-            hp=20 + dificuldade * 2,
+            hp=20 + dificuldade,
             ac=15 + dificuldade // 4,
-            ataque_bonus=7 + dificuldade // 3,
+            ataque_bonus=7 + dificuldade,
             dano_lados=9,
             pos=pos, tipo='elite_magico', magia=True)
+        self._dificuldade = dificuldade
 
     def atacar(self, alvo):
         if getattr(alvo, 'invisivel', False):
@@ -3471,9 +3586,9 @@ class ArautodoVazio(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Arauto do Vazio",
-            hp=24 + dificuldade * 2,
+            hp=24 + dificuldade,
             ac=16 + dificuldade // 4,
-            ataque_bonus=8 + dificuldade // 3,
+            ataque_bonus=8 + dificuldade,
             dano_lados=8,
             pos=pos, tipo='elite_espectral')
 
@@ -3509,9 +3624,9 @@ class GargulaDePedra(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Gárgula de Pedra",
-            hp=28 + dificuldade * 2,
-            ac=18 + dificuldade // 4,
-            ataque_bonus=6 + dificuldade // 3,
+            hp=28 + dificuldade,
+            ac=18 + dificuldade // 3,
+            ataque_bonus=6 + dificuldade,
             dano_lados=9,
             pos=pos, tipo='elite_pétrea')
         self.resistencia_magica = 0.25   # verificado em usar_magia
@@ -3547,9 +3662,9 @@ class CampeaoDaMorte(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Campeão da Morte",
-            hp=30 + dificuldade * 3,
+            hp=30 + dificuldade,
             ac=17 + dificuldade // 4,
-            ataque_bonus=9 + dificuldade // 3,
+            ataque_bonus=9 + dificuldade,
             dano_lados=12,
             pos=pos, tipo="elite", magia=True)
 
@@ -3594,13 +3709,13 @@ class CavaleiroSemNome(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Cavaleiro Sem Nome",
-            hp=38 + dificuldade * 3,
+            hp=38 + dificuldade,
             ac=20 + dificuldade // 4,
-            ataque_bonus=12 + dificuldade // 3,
+            ataque_bonus=12 + dificuldade,
             dano_lados=14,
             pos=pos, tipo='extremo_guerreiro')
         self.furia_ativa = False
-        self.arma_loot   = f'Elmo da Fúria +{3 + dificuldade // 6}'
+        self._dificuldade = dificuldade
 
     def atacar(self, alvo):
         if getattr(alvo, 'invisivel', False):
@@ -3634,11 +3749,12 @@ class SerpenteAbissal(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Serpente Abissal",
-            hp=30 + dificuldade * 2,
+            hp=30 + dificuldade,
             ac=17 + dificuldade // 4,
-            ataque_bonus=10 + dificuldade // 3,
+            ataque_bonus=10 + dificuldade,
             dano_lados=12,
             pos=pos, tipo='extremo_venenoso')
+        self._dificuldade = dificuldade
 
     def atacar(self, alvo):
         if getattr(alvo, 'invisivel', False):
@@ -3674,12 +3790,13 @@ class Dracolich(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Dracolich",
-            hp=40 + dificuldade * 3,
+            hp=40 + dificuldade,
             ac=19 + dificuldade // 3,
-            ataque_bonus=13 + dificuldade // 3,
+            ataque_bonus=13 + dificuldade,
             dano_lados=14,
             pos=pos, tipo='lendário', magia=True)
         self.resistencia_magica = 0.30
+        self._dificuldade = dificuldade
 
     def atacar(self, alvo):
         if getattr(alvo, 'invisivel', False):
@@ -3720,9 +3837,9 @@ class EspectrodasProfundezas(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Espectro das Profundezas",
-            hp=32 + dificuldade * 3,
+            hp=32 + dificuldade,
             ac=17 + dificuldade // 4,
-            ataque_bonus=11 + dificuldade // 3,
+            ataque_bonus=11 + dificuldade,
             dano_lados=10,
             pos=pos, tipo='extremo_espectral')
         self._resistencia_fisica = True   # flag verificada em Inimigo.atacar
@@ -3763,10 +3880,10 @@ def _drenar_hp_max(alvo, quantidade):
 class OlhoDeVecna(InimigoEspecial):
     def __init__(self, pos, dificuldade=1):
         # Escala progressiva: cada ponto de dificuldade aumenta HP, AC e poder de ataque
-        hp_base       = 80  + dificuldade * 12
-        ac_base       = 16  + dificuldade // 2
+        hp_base       = 80  + dificuldade * 3
+        ac_base       = 16  + dificuldade // 3
         atk_base      = 8   + dificuldade // 3
-        dano_base     = 10  + dificuldade // 2
+        dano_base     = 10  + dificuldade // 3
         super().__init__(
             nome="Olho de Vecna",
             hp=hp_base,
@@ -4136,6 +4253,30 @@ def mostrar_inimigo_art(inimigo):
         print(arte[inimigo.nome])
 
 
+def _aplicar_talisma(jogador, hp_antes):
+    """Verifica se o talismã deve absorver o golpe e quebra o primeiro da build.
+    Se houver um segundo talismã equipado, reativa o flag automaticamente."""
+    if not jogador.efeitos_ativos.get('talisma_protetor'):
+        return
+    if jogador.hp >= hp_antes or (hp_antes - jogador.hp) <= 10:
+        return
+    dano_sofrido = hp_antes - jogador.hp
+    jogador.hp = hp_antes - 3
+    print(f"🔮 TALISMÃ PROTETOR! Dano crítico ({dano_sofrido}) absorvido — reduzido a 3!")
+    del jogador.efeitos_ativos['talisma_protetor']
+    # Remover o primeiro talismã da build
+    nome_t = next((eq for eq in jogador.equipados if 'Talismã Protetor' in eq), None)
+    if nome_t:
+        jogador.equipados.remove(nome_t)
+        jogador.atualizar_atributos_equipamento()
+        print(f"   💔 O Talismã se partiu em pó.")
+    # Se ainda há um outro talismã equipado, ativar o próximo automaticamente
+    proximo = next((eq for eq in jogador.equipados if 'Talismã Protetor' in eq), None)
+    if proximo:
+        jogador.efeitos_ativos['talisma_protetor'] = 'ativo'
+        print(f"   🔮 Talismã reserva ativado automaticamente!")
+
+
 def combate(jogador, inimigo, inimigo_iniciou=False):
     print(f"\n⚔️  Combate iniciado contra {inimigo.nome}!")
     mostrar_inimigo_art(inimigo)
@@ -4436,8 +4577,9 @@ def combate(jogador, inimigo, inimigo_iniciou=False):
             else:
                 # ── Contra-ataque passivo ─────────────────────────
                 if jogador.contra_ataque_ativo:
+                    hp_antes_talisma = jogador.hp
                     inimigo.atacar(jogador)
-                    # Revida sempre — independente de o inimigo ter acertado ou errado
+                    _aplicar_talisma(jogador, hp_antes_talisma)
                     dano_ca = rolar_dado(jogador.dano_lados) + (jogador.arma['dano'] if jogador.arma else 0)
                     inimigo.hp -= dano_ca
                     print(f"   ⚔️  CONTRA-ATAQUE! {dano_ca} de dano em {inimigo.nome}!")
@@ -4446,7 +4588,9 @@ def combate(jogador, inimigo, inimigo_iniciou=False):
                     jogador.cooldown_habilidade = 4
                     print("   🛡️  Contra-ataque disparado. Recarga: 4 turnos.")
                 else:
+                    hp_antes_talisma = jogador.hp
                     inimigo.atacar(jogador)
+                    _aplicar_talisma(jogador, hp_antes_talisma)
 
             # ── Decrementar paralisado/atordoado APÓS o turno de ação ─
             for ef_ctrl in ('paralisado', 'atordoado'):
@@ -4508,6 +4652,93 @@ def _coletar_flechas(jogador, disponivel):
 
 def _loot_inimigo(jogador, inimigo):
     """Checa se inimigo derrubou loot especial (arma portada)."""
+
+    def _oferecer(item):
+        """Oferece item; deixa no chão se sem espaço ou recusar."""
+        mapa_ref = getattr(jogador, '_mapa_ref', None)
+        print(f"   🎁 Drop: {item}")
+        if jogador.pode_carregar(item):
+            r = input("   Pegar? (s/n): ").lower()
+            if r == 's':
+                jogador.inventario.append(item)
+                print(f"   ✅ {item} adicionado.")
+            else:
+                if mapa_ref and inimigo.pos not in mapa_ref.itens:
+                    mapa_ref.itens[inimigo.pos] = item
+                print(f"   📦 {item} ficou no chão.")
+        else:
+            print(f"   ⚠️  Sem espaço — {item} ficou no chão.")
+            if mapa_ref and inimigo.pos not in mapa_ref.itens:
+                mapa_ref.itens[inimigo.pos] = item
+
+    # ── DROPS ESPECIAIS DE ELITE (garantidos, não aleatórios) ─────────
+    dif = getattr(inimigo, '_dificuldade', 24)
+
+    # Registrar derrota de inimigos únicos — nunca voltarão a spawar
+    NOMES_UNICOS = {'Sacerdote Devorador', 'Dracolich', 'Serpente Abissal'}
+    if inimigo.nome in NOMES_UNICOS:
+        _unicos_spawados.add(inimigo.nome.replace(' ', ''))
+
+    if inimigo.nome == 'Sacerdote Devorador':
+        print(f"\n✝️  O SACERDOTE DEVORADOR desmorona. Sua essência corrompida persiste...")
+        time.sleep(1)
+        hp_ganho = max(3, inimigo.hp_max * 9 // 100)
+        jogador.hp_max    += hp_ganho
+        jogador.base_hp_max += hp_ganho
+        jogador.hp = min(jogador.hp + hp_ganho, jogador.hp_max)
+        print(f"   🩸 +{hp_ganho} HP máximo permanente — vitalidade corrompida absorvida!")
+        bonus_g = max(1, dif // 8)
+        _oferecer(f'Grimório das Almas +{bonus_g}')
+        time.sleep(1)
+        # Pular loot genérico — drop especial substitui
+        _processar_loot_comum(jogador, inimigo, pular_arma_loot=True)
+        return
+
+    elif inimigo.nome == 'Dracolich':
+        print(f"\n🐉 O DRACOLICH colapsa em cinzas. Sua alma vingativa fica presa num cristal...")
+        time.sleep(1.2)
+        print(f"   💎 Cristal da Vingança Dracônica se formou.")
+        print(f"   Use-o em combate contra o Olho de Vecna para enfraquecê-lo.")
+        time.sleep(0.5)
+        _oferecer('Cristal da Vingança Dracônica')
+        time.sleep(1)
+        _processar_loot_comum(jogador, inimigo, pular_arma_loot=True)
+        return
+
+    elif inimigo.nome == 'Serpente Abissal':
+        print(f"\n🐍 A SERPENTE ABISSAL tombou. Suas presas ainda pulsam com veneno abissal...")
+        time.sleep(1)
+        hp_ganho = max(2, inimigo.hp_max * 6 // 100)
+        jogador.hp_max    += hp_ganho
+        jogador.base_hp_max += hp_ganho
+        jogador.hp = min(jogador.hp + hp_ganho, jogador.hp_max)
+        print(f"   🩸 +{hp_ganho} HP máximo permanente — vitalidade abissal absorvida!")
+        bonus_p = max(1, dif // 6)
+        _oferecer(f'Presa Abissal +{bonus_p}')
+        time.sleep(1)
+        _processar_loot_comum(jogador, inimigo, pular_arma_loot=True)
+        return
+
+    elif inimigo.nome == 'Cavaleiro Sem Nome':
+        print(f"\n⚔️  O CAVALEIRO SEM NOME desmorona. Sua arma ressoa com batalhas esquecidas...")
+        time.sleep(1)
+        bonus_c = max(2, dif // 7)
+        item_cav = random.choice([
+            f'Espada dos Mártires +{bonus_c}',
+            f'Espada Fantasma +{bonus_c}',
+            f'Lâmina Drenante +{bonus_c}',
+        ])
+        _oferecer(item_cav)
+        time.sleep(1)
+        _processar_loot_comum(jogador, inimigo, pular_arma_loot=True)
+        return
+
+    # ── Inimigos normais ──────────────────────────────────────────────
+    _processar_loot_comum(jogador, inimigo)
+
+
+def _processar_loot_comum(jogador, inimigo, pular_arma_loot=False):
+    """Loot padrão: itens roubados, flechas, Olho Necromântico, arma_loot."""
     # ── Itens roubados pelo Goblin Furtivo ────────────────────────────
     itens_roubados = getattr(inimigo, '_itens_roubados', [])
     if itens_roubados:
@@ -4521,12 +4752,10 @@ def _loot_inimigo(jogador, inimigo):
         inimigo._itens_roubados = []
         time.sleep(1)
     # ── Drop de flechas ────────────────────────────────────────────────
-    # Caso 1: Arqueiro das Trevas — sempre dropa flechas (6–12), escolha de qtd
     if inimigo.nome == 'Arqueiro das Trevas':
         qtd_total = random.randint(6, 12)
         print(f"🏹 O Arqueiro das Trevas carregava {qtd_total} flechas.")
         _coletar_flechas(jogador, qtd_total)
-    # Caso 2: Inimigo foi atingido por flechas — recupera até 50% delas
     elif getattr(inimigo, 'flechas_cravadas', 0) > 0:
         cravadas = inimigo.flechas_cravadas
         recuperaveis = max(1, cravadas // 2)
@@ -4540,19 +4769,31 @@ def _loot_inimigo(jogador, inimigo):
             kills_olho += 1
             jogador.efeitos_ativos['olho_kills'] = kills_olho
             print(f"👁️ Olho Necromântico absorve a morte de {inimigo.nome}! +1 dano mágico permanente (total +{kills_olho})")
+    if pular_arma_loot:
+        return
     if hasattr(inimigo, 'arma_loot') and random.random() < 0.35:
         item = inimigo.arma_loot
         print(f"\n💀 {inimigo.nome} deixou cair: {item} ({peso_item(item)}kg)")
         time.sleep(1)
+        mapa_ref = getattr(jogador, '_mapa_ref', None)
         if jogador.pode_carregar(item):
             r = input("   Pegar? (s/n): ").lower()
             if r == 's':
                 jogador.inventario.append(item)
                 print(f"   ✅ {item} adicionado ao inventário.")
             else:
-                print(f"   ↩️  Você deixou o item no chão.")
+                if mapa_ref and inimigo.pos not in mapa_ref.itens:
+                    mapa_ref.itens[inimigo.pos] = item
+                    print(f"   ↩️  {item} ficou no chão.")
+                else:
+                    print(f"   ↩️  {item} foi deixado no chão.")
         else:
-            print(f"   ⚠️  Mochila pesada demais! ({jogador.peso_atual}/{jogador.capacidade_peso}kg). Item perdido.")
+            print(f"   ⚠️  Mochila pesada demais! ({jogador.peso_atual:.1f}/{jogador.capacidade_peso}kg)")
+            if mapa_ref and inimigo.pos not in mapa_ref.itens:
+                mapa_ref.itens[inimigo.pos] = item
+                print(f"   📦 {item} ficou no chão — pegue depois.")
+            else:
+                print(f"   ❌ Sem espaço no chão — {item} perdido.")
         time.sleep(1)
 
 
@@ -4685,13 +4926,15 @@ class AndarLabirinto:
     Salas sem escada = becos sem saída. Pelo menos 1 caminho leva adiante.
     """
 
-    def __init__(self, numero_andar, dificuldade, extrema=False, entradas=None):
+    def __init__(self, numero_andar, dificuldade, extrema=False, entradas=None, unicos_spawados=None):
         self.numero = numero_andar
         self.dificuldade = dificuldade
         self.extrema = extrema
         self.nome = random.choice(NOMES_ANDARES_PROFUNDOS)
         self.salas = {}       # {(rx,ry): Mapa}
         self.conexoes = {}    # {(rx,ry): set[(rx2,ry2)]}
+        # Set mutável compartilhado com DungeonGame — inimigos únicos já spawados
+        self.unicos_spawados = unicos_spawados if unicos_spawados is not None else set()
         # Coordenadas que DEVEM existir como salas com escada de subida
         # (cada coord corresponde a uma escada de descida no andar acima)
         self.entradas = set(entradas) if entradas else {(0, 0)}
@@ -4943,7 +5186,7 @@ class Mapa:
                 x, y = random.choice(pos_lista_elite)
                 self._spawn_inimigo_elite(x, y, dificuldade)
                 # Boss rooms não têm outros inimigos — só o boss
-                if dificuldade >= 30:
+                if dificuldade >= 45:
                     print("💀 Uma presença singular domina esta câmara. Não há mais nada vivo aqui.")
                     time.sleep(1.5)
                 else:
@@ -4969,7 +5212,7 @@ class Mapa:
                     self.portas[(x, y)] = random.random() < 0.5
 
         # Escadas (dentro da região — avançam no subsolo)
-        if dificuldade >= 33:
+        if dificuldade >= 33: # ????????
             if random.random() < 0.4:
                 pos_lista = [(x, y) for y in range(1, self.altura - 1)
                              for x in range(1, self.largura - 1) if self.matriz[y][x] == '.']
@@ -4989,6 +5232,9 @@ class Mapa:
         estruturas_possiveis = ['altar antigo', 'círculo mágico', 'estátua enigmática']
         if self.extrema:
             estruturas_possiveis += ['altar de sangue', 'portal do vazio']
+        elif dificuldade >= 30:
+            # Late game sem modo extremo: altar de sangue começa a aparecer
+            estruturas_possiveis += ['altar de sangue']
         for _ in range(random.randint(1, 2)):
             x, y = random.randint(1, self.largura - 2), random.randint(1, self.altura - 2)
             if self.matriz[y][x] == '.':
@@ -5067,7 +5313,7 @@ class Mapa:
 
         # ── Itens raros / lendários (dificuldade 10+) ─────────────────
         raros = []
-        if dificuldade >= 10:
+        if dificuldade >= 18:
             raros += [
                 f'Orbe Mental de Vecna +{1 + dificuldade // 2}',
                 f'Grimório das Almas +{2 + dificuldade // 3}',
@@ -5083,7 +5329,7 @@ class Mapa:
                 'Olho Necromântico',
                 f'Lâmina Especular +{2 + dificuldade // 4}',
             ]
-        if dificuldade >= 18:
+        if dificuldade >= 28:
             raros += [
                 f'Grimório da Maldição +{2 + dificuldade // 4}',
                 'Coroa dos Condenados',
@@ -5128,20 +5374,31 @@ class Mapa:
 
     def _spawn_inimigo_elite(self, x, y, dificuldade, distancia_hub=0):
         """Spawna inimigo elite. Quanto maior distancia_hub, mais pesado."""
-        # Tier 4 — modo extremo (dif 30+) ou muito profundo (dif 48+)
-        if (self.extrema and dificuldade >= 30) or dificuldade >= 48:
-            pool = [CavaleiroSemNome, SerpenteAbissal, Dracolich, EspectrodasProfundezas]
+        # Tier 4 — modo extremo (dif 45+) ou muito profundo (dif 58+)
+        if (self.extrema and dificuldade >= 45) or dificuldade >= 58:
+            pool = [CavaleiroSemNome, EspectrodasProfundezas]
+            # Únicos só entram se ainda não spawados nesta run
+            if 'SerpenteAbissal' not in _unicos_spawados:
+                pool.append(SerpenteAbissal)
+            if 'Dracolich' not in _unicos_spawados:
+                pool.append(Dracolich)
             cls = random.choice(pool)
             self.inimigos.append(cls((x, y), dificuldade))
+            if cls.__name__ in {'SerpenteAbissal', 'Dracolich'}:
+                _unicos_spawados.add(cls.__name__)
 
-        # Tier 3 elite — andares profundos (dif 30+)
-        elif dificuldade >= 30:
-            pool = [CampeaoDaMorte, GargulaDePedra, SacerdoteDevedor, ArautodoVazio]
+        # Tier 3 elite — andares profundos (dif 40+)
+        elif dificuldade >= 40:
+            pool = [CampeaoDaMorte, GargulaDePedra, ArautodoVazio]
+            if 'SacerdoteDevedor' not in _unicos_spawados:
+                pool.append(SacerdoteDevedor)
             cls = random.choice(pool)
             self.inimigos.append(cls((x, y), dificuldade))
+            if cls.__name__ == 'SacerdoteDevedor':
+                _unicos_spawados.add('SacerdoteDevedor')
 
-        # Tier 2 elite — andares médios (dif 18+)
-        elif dificuldade >= 18:
+        # Tier 2 elite — andares médios (dif 28+)
+        elif dificuldade >= 28:
             pool = [OrcBerserker, ArqueiroDasTrevas,
                     VermedaEntranhas, CarnicaldaProfundeza]
             cls = random.choice(pool)
@@ -5155,13 +5412,24 @@ class Mapa:
 
     def _popular_inimigos(self, dificuldade):
         """
-        Popula a sala com inimigos respeitando hierarquia de tier:
-        - Tier 4 boss (Dracolich, Serpente, Cavaleiro): sala exclusiva, 1 inimigo.
-        - Tier 3 boss (Sacerdote, Campeão): sala exclusiva + até 1 seguidor Tier 2.
-        - Tiers 2/1: mistura limitada apenas entre o mesmo tier.
+        Popula a sala com inimigos respeitando hierarquia de tier.
+        Dracolich, Serpente Abissal e Sacerdote Devorador são únicos por run.
         """
-        BOSS_T4 = [CavaleiroSemNome, SerpenteAbissal, Dracolich]
-        BOSS_T3 = [SacerdoteDevedor, CampeaoDaMorte]
+        # Inimigos únicos — nunca repetem após spawar
+        UNICOS = {'Dracolich', 'Serpente Abissal', 'Sacerdote Devorador'}
+
+        # Filtrar pool T4 removendo os únicos já spawados
+        BOSS_T4_TODOS = [CavaleiroSemNome, SerpenteAbissal, Dracolich]
+        BOSS_T4 = [c for c in BOSS_T4_TODOS if c.__name__ not in _unicos_spawados]
+        # Se todos os únicos T4 já apareceram, usar só o Cavaleiro (não-único)
+        if not BOSS_T4:
+            BOSS_T4 = [CavaleiroSemNome]
+
+        # Filtrar pool T3 — Sacerdote Devorador é único, CampeaoDaMorte não
+        BOSS_T3_TODOS = [SacerdoteDevedor, CampeaoDaMorte]
+        BOSS_T3 = [c for c in BOSS_T3_TODOS if c.__name__ not in _unicos_spawados]
+        if not BOSS_T3:
+            BOSS_T3 = [CampeaoDaMorte]  # fallback: CampeaoDaMorte não é único
 
         pos_lista = [(x, y) for y in range(self.altura) for x in range(self.largura)
                      if self.matriz[y][x] == '.']
@@ -5175,24 +5443,28 @@ class Mapa:
             return random.choice(livres) if livres else None
 
         # ── TIER 4 BOSS — sala exclusiva, 1 único ─────────────────────
-        if (self.extrema and dificuldade >= 30) or dificuldade >= 48:
+        if (self.extrema and dificuldade >= 55) or dificuldade >= 58:
             cls = random.choice(BOSS_T4)
             p = pos_livre()
             if p:
                 self.inimigos.append(cls(p, dificuldade))
+                if cls.__name__ in {'SerpenteAbissal', 'Dracolich'}:
+                    _unicos_spawados.add(cls.__name__)
             # EspectrodasProfundezas pode aparecer sozinho também, mas não mistura
-            if random.random() < 0.35 and dificuldade >= 54:
+            if random.random() < 0.35 and dificuldade >= 64:
                 p2 = pos_livre()
                 if p2:
                     self.inimigos.append(EspectrodasProfundezas(p2, dificuldade))
             return   # sala exclusiva — nenhum outro inimigo
 
         # ── TIER 3 BOSS — sala exclusiva + 1 seguidor T2 opcional ──────
-        elif dificuldade >= 30:
+        elif dificuldade >= 45:
             cls = random.choice(BOSS_T3)
             p = pos_livre()
             if p:
                 self.inimigos.append(cls(p, dificuldade))
+                if cls.__name__ == 'SacerdoteDevedor':
+                    _unicos_spawados.add('SacerdoteDevedor')
             # Seguidor Tier 2 (único, 40% de chance) — não mistura T1
             if random.random() < 0.40:
                 p2 = pos_livre()
@@ -5202,7 +5474,7 @@ class Mapa:
             return   # sala exclusiva
 
         # ── TIER 2 — máx 2 inimigos, mesmo tier ───────────────────────
-        elif dificuldade >= 18:
+        elif dificuldade >= 28:
             qtd = random.randint(1, 2)
             pool = [OrcBerserker, ArqueiroDasTrevas, VermedaEntranhas, CarnicaldaProfundeza]
             for _ in range(qtd):
@@ -5441,6 +5713,11 @@ class DungeonGame:
         self.nivel = 0          # Salas únicas visitadas (progresso real)
         self.andar = 1          # Profundidade atual
 
+        # Inimigos únicos já spawados nesta run (nunca repetem)
+        self.unicos_spawados = set()   # ex: {'Dracolich', 'Serpente Abissal', 'Sacerdote Devorador'}
+        global _unicos_spawados
+        _unicos_spawados = self.unicos_spawados  # referência compartilhada
+
         # Modo extremo
         self.modo_extremo = False
 
@@ -5509,25 +5786,104 @@ class DungeonGame:
             self.salas_visitadas.add(chave)
             if regiao_key != 'hub':
                 self.nivel += 1
-                # Modo extremo — somente ao atingir profundidade >= 11 em andar profundo
-                # Nunca ativa por exploração do andar 1
-                if (self.em_andar_profundo and self.andar >= 7
-                        and not self.modo_extremo):
-                    self._ativar_modo_extremo()
+                # Modo extremo — ativa por dificuldade, andar ou presença de T4/T3
+                if not self.modo_extremo:
+                    self._verificar_ativar_modo_extremo()
+
+    def _verificar_ativar_modo_extremo(self):
+        """
+        Ativa o modo extremo no late game.
+        Só funciona em andares profundos. Trigger principal: andar.
+        - Andar 7–8: chance de 40% por sala nova
+        - Andar 9:   chance de 70%
+        - Andar 10+: garantido
+        Também ativa se dificuldade >= 54 (exploração intensa num andar menor).
+        """
+        if not self.em_andar_profundo:
+            return
+
+        dif = self._dificuldade_atual()
+        andar = self.andar
+
+        if andar >= 10 or dif >= 54:
+            self._ativar_modo_extremo()
+        elif andar == 9:
+            if random.random() < 0.70:
+                self._ativar_modo_extremo()
+        elif andar >= 7:
+            if random.random() < 0.40:
+                self._ativar_modo_extremo()
 
     def _ativar_modo_extremo(self):
-        """Ativa o modo extremo da dungeon a partir do nível 28."""
+        """Ativa o modo extremo — narrativa completa ao estilo sessão zero."""
         self.modo_extremo = True
+        nome_zona = random.choice(NOMES_REGIOES_EXTREMAS)
+        desc_extrema = random.choice(DESCRICOES_EXTREMAS)
+
         limpar_tela()
-        print("\n" + "█" * 50)
-        print("  ☠️   A DUNGEON ENTRA EM MODO EXTREMO   ☠️")
-        print("█" * 50)
-        time.sleep(1)
-        print(random.choice(DESCRICOES_EXTREMAS))
-        time.sleep(3)
-        print("💀 As regiões restantes se corrompem com energia profana...")
+        time.sleep(0.8)
+
+        # ── Título ──────────────────────────────────────────────────────
+        largura = 58
+        borda = "▓" * largura
+        print(f"\n{borda}")
+        print(f"▓{'':^{largura - 2}}▓")
+        print(f"▓{'☠  ZONA CORROMPIDA  ☠':^{largura - 2}}▓")
+        print(f"▓{nome_zona.upper():^{largura - 2}}▓")
+        print(f"▓{'':^{largura - 2}}▓")
+        print(f"{borda}")
         time.sleep(2)
-        # Regenerar regiões ainda não visitadas como extremas
+
+        # ── Sequência narrativa ──────────────────────────────────────────
+        print()
+        narrativas = [
+            [
+                "   Você sente antes de perceber.",
+                "   A pedra muda de textura sob seus pés — mais quente.",
+                "   Como se o chão respirasse.",
+            ],
+            [
+                "   O eco dos seus passos para de responder.",
+                "   Os corredores se fecham atrás de você.",
+                "   Isto não é mais uma masmorra. É uma coisa viva.",
+            ],
+            [
+                "   A tocha tremula — mas não há vento.",
+                "   Algo olha de dentro das paredes.",
+                "   O silêncio aqui tem dentes.",
+            ],
+            [
+                "   Uma pressão nasce atrás dos seus olhos.",
+                "   Palavras que você não conhece sussurram do chão.",
+                "   O Olho está próximo. Ele sabe que você veio.",
+            ],
+        ]
+        for linha in random.choice(narrativas):
+            print(linha)
+            time.sleep(1.1)
+
+        time.sleep(0.8)
+        print()
+        print(f"   {desc_extrema}")
+        time.sleep(2.5)
+
+        # ── Alertas mecânicos ────────────────────────────────────────────
+        print()
+        alertas = [
+            ("☠", "Os inimigos mais antigos das profundezas despertaram."),
+            ("🩸", "Altares de sangue emergem do chão corrompido."),
+            ("👁", "O território do Olho de Vecna começa aqui."),
+        ]
+        for icone, texto in alertas:
+            print(f"   {icone}  {texto}")
+            time.sleep(0.9)
+
+        print()
+        print(f"   Você entrou em: {nome_zona}")
+        time.sleep(3)
+        limpar_tela()
+
+        # ── Regenerar regiões não visitadas como extremas ────────────────
         dif_extrema = self._dificuldade_atual()
         for dir_key, regiao in self.regioes.items():
             chave = (str(dir_key), (0, 0))
@@ -5679,13 +6035,13 @@ class DungeonGame:
                 limpar_tela()
                 print(escolhe_mago(wizard))
                 time.sleep(2)
-                personagem = Personagem("Mago", 19, 12, 3, 10, "Mago", 3, 10)
+                personagem = Personagem("Mago", 19, 8, 6, 10, "Mago", 3, 5)
             elif c == '3':
                 classe_escolhida = "Ladino"
                 limpar_tela()
                 print(escolhe_ladino(rogue))
                 time.sleep(2)
-                personagem = Personagem("Ladino", 21, 14, 9, 6, "Ladino", 9, 6)
+                personagem = Personagem("Ladino", 21, 14, 8, 6, "Ladino", 8, 6)
 
         self._sessao_zero(personagem, classe_escolhida)
         return personagem
@@ -5790,21 +6146,21 @@ class DungeonGame:
 
         # ── SUBCLASSES — palavras-chave de detecção ──────────────────────
         KWDS_BARBARO    = {'fúria', 'furia', 'berserk', 'selvagem', 'raiva', 'barbaro', 'bárbaro',
-                           'instinto', 'destruir', 'raiva', 'só força', 'so força',
-                           'esqueço de mim', 'sem pensar', 'combate é vida',
+                           'instinto', 'destruir', 'raiva', 'força', 'força',
+                           'esqueço de mim', 'sem pensar', 'combate',
                            'machado', 'rasgar', 'massacrar', 'sangue e ferro'}
         KWDS_CAVALEIRO  = {'honra', 'cavaleiro', 'juramento', 'juro', 'código', 'codigo', 'nobre',
                            'nobreza', 'proteger', 'servir', 'dever', 'lealdade', 'vassalo',
                            'espada e escudo', 'disciplina', 'promessa', 'ordem', 'cavalaria',
-                           'arte marcial', 'tática', 'formação', 'estudei'}
+                           'arte marcial', 'tática', 'formação', 'estudei', 'heroi', 'herói'}
         KWDS_MAGO_AZUL  = {'luz', 'curar', 'cura', 'proteção', 'protecao', 'elemento', 'elemental', 'elementar',
-                           'agua', 'fogo', 'ar', 'terra', 'bondade', 'ajudar', 'iluminar',
-                           'claridade', 'benevolente', 'harmonia', 'equilíbrio', 'equilibrio',
+                           'água', 'agua', 'gelo', 'fogo', 'ar', 'terra', 'humanidade', 'equilibrio', 'equilíbrio', 'ajudar', 'iluminar',
+                           'claridade', 'benevolen', 'harmonia', 'equilíbrio', 'equilibrio',
                            'natureza arcana', 'magia natural', 'poder mágico puro', 'alma de luz'}
         KWDS_MAGO_NEGRO = {'necro', 'maldição', 'maldicao', 'sombras', 'escuridão', 'escuridao',
                            'poder ilimitado', 'poderoso', 'almas', 'drain', 'drenar', 'morte é poder', 'poder mágico mortal',
                            'morte e poder', 'necromancia', 'poder', 'poder absoluto', 'tudo tem preço',
-                           'tudo tem preco', 'não me importo', 'nao me importo com o custo',
+                           'tudo tem preco', 'não me importo', 'nao me importo com o custo', 'nao importa', 'não importa'
                            'dark magic', 'magia sombria', 'magia negra', 'feitiço proibido', 'feitico proibido', 'rituais'}
         KWDS_LADRAO     = {'roubar', 'espólio', 'tomar', 'furtar', 'recompensa', 'bolso', 'mercado negro', 'sobreviver', 'esgueirar',
                            'fugir sempre', 'não confrontar', 'nao confrontar', 'ladrão', 'ladrao',
@@ -6388,7 +6744,7 @@ class DungeonGame:
                 personagem.dano_lados += 2
                 personagem.base_dano_lados += 2
                 bonus_narrativo(f"+2 dado de dano. Sangue velho nos músculos.")
-            elif detectar(resp_origem, KWDS_AMOR | {'família', 'cidad', 'ruína', 'ruina', 'civilização', 'civilizacao'}):
+            elif detectar(resp_origem, KWDS_AMOR | {'família', 'cidad', 'ruína', 'ruina', 'civilização', 'civilizacao', 'arruinad'}):
                 porteiro_curto([
                     "Uma vida antes desta.",
                     "",
@@ -6611,7 +6967,7 @@ class DungeonGame:
             extras = ['Elmo da Fúria +2', 'Espada Curta +1', 'Poção de Sangue', 'explosivo arremessável']
 
         elif sc == 'Cavaleiro':
-            itens_base = ['poção de cura', 'Espada Longa +1', 'Armadura do Veterano', 'Pó de Gelo', 'Erva do Sono', 'Rede de Caça']
+            itens_base = ['poção de cura', 'Espada Longa +1', 'Armadura do Veterano']
             porteiro_curto([
                 "Cavaleiro. Disciplina, código e aço refinado.",
                 "Podeis ler tomos — o conhecimento também é armadura.",
@@ -6654,7 +7010,7 @@ class DungeonGame:
             extras = ['Grimório do Colapso', 'Tomo de Sabedoria Antiga', 'explosivo arremessável', 'Poção de Sangue']
 
         elif sc == 'Ladrão':
-            itens_base = ['Botas do Silêncio', 'Adaga Simples +1', 'chave']
+            itens_base = ['Botas do Silêncio', 'Adaga Simples +1', 'chave', 'Diário Perdido']
             porteiro_curto([
                 "Ladrão. Furtividade, sobrevivência e oportunismo.",
                 "Armadilhas raramente vos surpreendem.",
@@ -7166,7 +7522,7 @@ class DungeonGame:
                   f"║      livre: {livre:.1f}kg")
             print("╠══════════════════════════════════════════════════╣")
 
-            # ── BOLSA ── # Ajustar slots_equip ou condições para equipar arco 28/03
+            # ── BOLSA ──
             hdr_b = "► BOLSA" if secao == 'bolsa' else "  BOLSA"
 #            slots_equip = f"({ne}/6 equipados)"
             # Flechas aparecem como entrada virtual no fim da bolsa
@@ -8026,6 +8382,9 @@ class DungeonGame:
                     return
                 self.sala_no_andar = nova_sala
                 self.salas_visitadas.add(chave_v)
+                self.nivel += 1
+                if not self.modo_extremo:
+                    self._verificar_ativar_modo_extremo()
                 self.mapa = novo_mapa
                 self.x, self.y = self._spawn_borda_oposta(dx, dy)
                 self.jogador.pos = (self.x, self.y)
@@ -8162,17 +8521,20 @@ class DungeonGame:
                 self._tentar_colocar_diario(novo_mapa)
 
     def _tentar_colocar_diario(self, mapa):
-        """Coloca um Diário Perdido aleatoriamente em mapa se ainda há exemplares não colocados."""
+        """Coloca um Diário Perdido em mapa a partir do midgame (andar >= 3 ou dif >= 18)."""
+        # Só distribui diários no midgame em diante
+        if not (self.em_andar_profundo and self.andar >= 3) and self._dificuldade_atual() < 18:
+            return
         diarios_restantes = len(self._diarios_por_sessao) - getattr(self, '_diarios_colocados', 0)
         if diarios_restantes <= 0:
             return
-        # Probabilidade decresce conforme menos restam; garante que todos sejam colocados
-        # Colocamos sempre com 40% de chance por sala, mas após certas salas força colocação
         salas_exploradas = self.nivel
         diarios_colocados = getattr(self, '_diarios_colocados', 0)
-        # Forçar colocação se ficaram poucos (evitar perder diários por não aparecerem)
+        # Forçar colocação se ficaram poucos
         forcar = (salas_exploradas >= 8 + diarios_colocados * 5 and diarios_restantes > 0)
-        if forcar or random.random() < 0.40:
+        # Chance base 40%, sobe no late game
+        chance = 0.55 if self._dificuldade_atual() >= 30 else 0.40
+        if forcar or random.random() < chance:
             livres = [(x, y)
                       for y in range(1, mapa.altura - 1)
                       for x in range(1, mapa.largura - 1)
@@ -8557,7 +8919,8 @@ class DungeonGame:
             if self.andar not in self.andares:
                 entradas = self.entradas_andares[self.andar]
                 self.andares[self.andar] = AndarLabirinto(
-                    self.andar, dif, extrema=self.modo_extremo, entradas=entradas
+                    self.andar, dif, extrema=self.modo_extremo,
+                    entradas=entradas, unicos_spawados=self.unicos_spawados
                 )
                 print(f"   Você chega ao Andar {self.andar}: {self.andares[self.andar].nome}")
                 time.sleep(1.5)
@@ -8589,6 +8952,9 @@ class DungeonGame:
             self.sala_no_andar = coord_origem
             self.mapa = andar_obj.sala(self.sala_no_andar)
             self.salas_visitadas.add(('andar', self.andar, self.sala_no_andar))
+            # Tentar colocar diário a partir do midgame
+            if self.andar >= 3:
+                self._tentar_colocar_diario(self.mapa)
             # Pousar junto à escada de subida (para poder voltar facilmente)
             if self.mapa.escada_subir:
                 self.x, self.y = self._spawn_junto_a(self.mapa, self.mapa.escada_subir)
@@ -8676,6 +9042,8 @@ class DungeonGame:
         # Estruturas especiais
         elif (x, y) in self.mapa.estruturas:
             estrutura = self.mapa.estruturas[(x, y)]
+            # Guardar referência — handlers como portal podem trocar self.mapa
+            mapa_estrutura_ref = self.mapa
 
             if estrutura.startswith("armadilha_"):
                 # Armadilhas disparam sem confirmação
@@ -8770,21 +9138,33 @@ class DungeonGame:
                     time.sleep(1.5)
                     if self.em_andar_profundo and self.andar in self.andares:
                         andar_obj = self.andares[self.andar]
-                        nova_sala = random.choice(list(andar_obj.salas.keys()))
-                        self.sala_no_andar = nova_sala
-                        self.salas_visitadas.add(('andar', self.andar, nova_sala))
-                        self.mapa = andar_obj.sala(nova_sala)
-                        self.x, self.y = self._spawn_em_mapa(self.mapa)
-                        self.jogador.pos = (self.x, self.y)
-                        print("   🌌 O portal te engole! Você emerge em outra câmara do andar.")
-                    elif self.regiao_atual_key and len(self.regioes[self.regiao_atual_key].salas) > 1:
-                        nova_sala = random.choice(list(self.regioes[self.regiao_atual_key].salas.keys()))
-                        self.sala_pos = nova_sala
-                        self.mapa = self.regioes[self.regiao_atual_key].sala(nova_sala)
-                        self._registrar_visita(self.regiao_atual_key, nova_sala)
-                        self.x, self.y = self.spawn_jogador()
-                        self.jogador.pos = (self.x, self.y)
-                        print("   🌌 O portal te engole! Você emerge em outra parte da região.")
+                        # Preferir sala com escada de descida
+                        sala_destino = None
+                        for coord, mapa_s in andar_obj.salas.items():
+                            if coord != self.sala_no_andar and mapa_s and mapa_s.escadas:
+                                sala_destino = (coord, mapa_s)
+                                break
+                        if sala_destino:
+                            coord_dest, mapa_dest = sala_destino
+                            self.sala_no_andar = coord_dest
+                            self.salas_visitadas.add(('andar', self.andar, coord_dest))
+                            self.mapa = mapa_dest
+                            esc = next(iter(mapa_dest.escadas))
+                            self.x, self.y = self._spawn_junto_a(mapa_dest, esc)
+                            self.jogador.pos = (self.x, self.y)
+                            print("   🌌 O portal te engole! Você emerge diante de uma escadaria que desce.")
+                        else:
+                            outras = [k for k in andar_obj.salas if k != self.sala_no_andar]
+                            if outras:
+                                dest = random.choice(outras)
+                                self.sala_no_andar = dest
+                                self.salas_visitadas.add(('andar', self.andar, dest))
+                                self.mapa = andar_obj.sala(dest)
+                                self.x, self.y = self._spawn_em_mapa(self.mapa)
+                                self.jogador.pos = (self.x, self.y)
+                                print("   🌌 O portal te engole! Você emerge em outra câmara do andar.")
+                            else:
+                                print("   🌌 O portal falha — não há outros caminhos a alcançar.")
                     else:
                         print("   🌌 O portal falha. Um cheiro de enxofre permanece no ar.")
                     time.sleep(2)
@@ -8840,7 +9220,9 @@ class DungeonGame:
                         print("   A estátua observa em silêncio... e some.")
                         time.sleep(2)
 
-                del self.mapa.estruturas[(x, y)]
+                # Deletar estrutura do mapa ORIGINAL (antes de qualquer teleporte)
+                if (x, y) in mapa_estrutura_ref.estruturas:
+                    del mapa_estrutura_ref.estruturas[(x, y)]
 
 
 
@@ -8983,8 +9365,8 @@ DIARIO_ENTRADAS = [
 
 DICAS_MORTE = [
     "💡 Na masmorra é possível encontrar rotas alternativas e passagens secretas."
-    "💡 Múltiplas armas e armaduras equipadas podem acumular atributos base, mas não efeitos específicos."
-    "💡 Inimigos mortos-vivos são imunes a veneno — guarde seu antídoto.",
+    "💡 Múltiplas armas e acessórios equipados podem acumular atributos base, mas não efeitos específicos."
+    "💡 Inimigos mortos-vivos são imunes a veneno, mas você não — guarde seu antídoto.",
     "💡 A Gárgula de Pedra contra-ataca golpes físicos. Magia funciona melhor.",
     "💡 O Goblin Furtivo pode roubar itens do seu inventário durante o combate.",
     "💡 Tocha Suja equipada ou Lanterna Espiritual ampliam seu campo de visão para 2 células.",
@@ -8998,7 +9380,6 @@ DICAS_MORTE = [
     "💡 O Orc Berserker tem 50% de chance de quebrar paralisação pela força bruta.",
     "💡 Veneno duplo causa 2x de dano por turno — antídoto imediato é prioridade.",
     "💡 A Serpente Abissal fareija sua alma — invisibilidade não funciona contra ela.",
-    "💡 O modo extremo ativa-se ao andar 6 ou 18 salas exploradas.",
     "💡 Andares profundos têm elites nas salas mais distantes da entrada.",
     "💡 Explosivos arremessáveis destroem paredes e causam alta variância de dano.",
     "💡 O Arauto do Vazio drena vida e cura a si mesmo — priorize dano alto por turno.",
@@ -9165,6 +9546,7 @@ def salvar_jogo(game, slot_nome=None):
         "dir_entrada":        list(game.dir_entrada) if game.dir_entrada else None,
         "entradas_andares":   entradas_ser,
         "spawn_retorno":      retorno_ser,
+        "unicos_spawados":    list(game.unicos_spawados),
         "personagem":         _save_personagem(game.jogador),
     }
 
@@ -9197,6 +9579,10 @@ def carregar_jogo(fname):
     game.y            = dados.get("y", 1)
     game._diarios_lidos     = dados.get("diarios_lidos", 0)
     game._diarios_por_sessao = []
+    # Restaurar inimigos únicos já derrotados
+    game.unicos_spawados = set(dados.get("unicos_spawados", []))
+    global _unicos_spawados
+    _unicos_spawados = game.unicos_spawados
 
     # ── Personagem ────────────────────────────────────────────────────
     game.jogador = _load_personagem(dados["personagem"])
@@ -9249,7 +9635,8 @@ def carregar_jogo(fname):
         for num_andar in range(2, game.andar + 1):
             entradas = game.entradas_andares.get(num_andar, {game.sala_no_andar})
             game.andares[num_andar] = AndarLabirinto(
-                num_andar, dif, extrema=game.modo_extremo, entradas=entradas
+                num_andar, dif, extrema=game.modo_extremo,
+                entradas=entradas, unicos_spawados=game.unicos_spawados
             )
         # Posicionar no andar e sala corretos
         andar_obj = game.andares[game.andar]
