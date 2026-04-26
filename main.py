@@ -1,5 +1,5 @@
 """
-# O LIMIAR — ver. 2.2.0
+# O LIMIAR — ver. 2.3.0
 # Anteriormente: Masmorras Liminares
 
     "Atmosférico. Punitivo. Ancestral. No Limiar do Mundo."
@@ -9,6 +9,65 @@
 # Licensed under the GNU GPL v3.0 or later
 # Para apoiar: pixgg.com/bandeirinha
 
+# ─────────────────────────────────────────────────────────────────────
+# NOTAS DE ATUALIZAÇÃO v2.3.0 — CHEFES, MODO EXTREMO E REFINAMENTOS
+# ─────────────────────────────────────────────────────────────────────
+#
+# INIMIGOS ÚNICOS (Chefes Secundários):
+#   Dracolich, Serpente Abissal e Sacerdote Devorador agora são únicos
+#   por run. Registrados em _unicos_spawados (set global + save/load).
+#   _spawn_inimigo_elite() e _popular_inimigos() filtram antes de sortear.
+#   Ao derrotar, o nome é registrado em _loot_inimigo para impedir respawn.
+#
+# DROPS E BÔNUS DE VIDA DE CHEFES:
+#   Sacerdote Devorador: +30% HP máximo permanente
+#                        + Grimório das Almas +[N] (escala por dificuldade)
+#   Serpente Abissal:    +20% HP máximo permanente
+#                        + Presa Abissal +[N] (veneno duplo escalável)
+#   Dracolich:           + Cristal da Vingança Dracônica (chave do boss final)
+#   Cavaleiro Sem Nome:  Espada dos Mártires +[N], Espada Fantasma +[N] ou Lâmina Drenante +[N]
+#
+# NOVOS ITENS LENDÁRIOS:
+#   Presa Abissal: arma lendária. Veneno duplo em cada ataque (2d5×2+bonus),
+#     escalável por dificuldade. Ataque + dano crescentes.
+#   Cristal da Vingança Dracônica: consumível único. Em combate contra o
+#     Olho de Vecna — HP_max÷4 de dano direto, -4 CA, -3 ataque, maldição 5t.
+#
+# MODO EXTREMO DA DUNGEON — FUNCIONAL E NARRATIVO:
+#   Trigger corrigido: verificado ao mover entre salas de andar profundo.
+#   Andar 7–8: 40% de chance; andar 9: 70%; andar 10+: garantido.
+#   Narrativa ao estilo sessão zero: borda ▓, 3 frases atmosféricas
+#   sorteadas de 4 grupos, descrição de DESCRICOES_EXTREMAS, alertas
+#   mecânicos, nome da zona de NOMES_REGIOES_EXTREMAS.
+#   Ambas as listas agora usadas pela primeira vez.
+#   Altar de sangue aparece a partir de dificuldade >= 30, antes mesmo
+#   do modo extremo completo (late game progressivo).
+#
+# ELMO DA FÚRIA — MEDIDOR DE DURABILIDADE:
+#   Durabilidade gravada no nome do item: "Elmo da Fúria +2 [dur:3]"
+#   Visível na bolsa antes de equipar. Ao desequipar, durabilidade restante
+#   é preservada no nome. Ao reequipar, restaura sem gerar novo randint.
+#   Swap entre elmos preserva corretamente a durabilidade de cada um.
+#
+# DIÁRIO PERDIDO:
+#   Surge a partir do midgame (andar >= 3 ou dificuldade >= 18).
+#   Tentativa de colocação ao descer cada andar profundo.
+#   Chance base 40%, sobe para 55% no late game.
+#
+# PORTAL DO VAZIO:
+#   Refatorado: teleporta prioritariamente para sala com escada de descida.
+#   Fallback: sala aleatória do mesmo andar. Só funciona em andares profundos.
+#   Bug corrigido: KeyError ao deletar estrutura após troca de self.mapa.
+#   Solução: mapa_estrutura_ref preserva o mapa original antes do handler.
+#
+# CORREÇÕES:
+#   Talismã Protetor: interceptado no loop de combate (hp_antes/depois),
+#     funciona para todas as subclasses de inimigo. Multi-talismã: ao
+#     quebrar, ativa automaticamente o próximo na build.
+#   Pergaminho de Proteção: armazenado como dict {bonus, turnos} —
+#     atualizar_efeitos() não decrementava; agora gerenciado em processar_efeitos().
+#   Paralisia: verificação e decremento centralizados no loop de combate.
+#
 # ─────────────────────────────────────────────────────────────────────
 # NOTAS DE ATUALIZAÇÃO v2.2.0 — SISTEMA DE MAGIA E NOVOS ITENS
 # ─────────────────────────────────────────────────────────────────────
@@ -257,9 +316,9 @@ import time
 import json
 import datetime
 
-from rotas import warrior, knight, spell, wizard, rogue, rogue2
+from rotas import charon, warrior, knight, spell, wizard, rogue, rogue2
 from enemies import scavenger_rat, goblin, guardian_skeleton, skull_archer, carniçal_profano, verme_das_entranhas, sacerdote_devorador, cavaleiro_sem_nome, arauto_do_vazio, serpente_abissal, warrior_orc, gargula, death_champion, vecnas_eye, vecna_meets, vecna_sees_everything, dracolich, reaper
-from structures import stairway, statue, wall, dungeon, dungeon2, dungeon3, magic_circle, magic_circle_blink, altar, lost_garden
+from structures import stairway, statue, wall, dungeon, dungeon2, dungeon3, magic_circle, magic_circle_blink, altar, lost_garden, bloody_altar, void_portal, threshold
 
 # ========================
 # NOMES DE REGIÕES
@@ -3919,7 +3978,11 @@ class OlhoDeVecna(InimigoEspecial):
             self.fase2_ativada = True
             print("\n🧿 O OLHO DE VECNA ENTRA EM FRENESI!")
             print("   Sua CA sobe, e seus ataques se tornam mais erráticos e devastadores!")
+            time.sleep(3)
+            print("\n O Olho mentalmente exclama:")
             time.sleep(2)
+            print("\n \"Prossiga com a ilusão de estar terminando com mais um jogo. Estarei sempre observando da mais alta montanha existente.\"") #26/04
+            time.sleep(4)
             self.ac += 4
             self.ataque_bonus += 3
 
@@ -5942,6 +6005,7 @@ class DungeonGame:
 
     def criar_personagem(self):
         limpar_tela()
+        print(threshold)
         print("""
   ╔══════════════════════════════════════════════════════════════╗
   ║                                                              ║
@@ -5957,6 +6021,8 @@ class DungeonGame:
   ╚══════════════════════════════════════════════════════════════╝
 """)
         time.sleep(3)
+        input("\n  [ pressione ENTER ]")
+        limpar_tela()
 
         # ── Mestre se apresenta ──────────────────────────────────────
         def n(txt, p=1.4):
@@ -5976,6 +6042,9 @@ class DungeonGame:
         n("", 0.5)
         n("A voz, quando vem, ressoa mais dentro do peito que pelos ouvidos:", 2)
         n("", 0.3)
+        limpar_tela()
+        print(charon)
+        time.sleep(1.5)
         print("  ╔═══════════════════════════════════════════════════════════╗")
         print("  ║  PORTEIRO — Ah. Mais um que chegou até aqui.              ║")
         print("  ║                                                           ║")
@@ -6181,7 +6250,6 @@ class DungeonGame:
         porteiro_curto([
             "Bem-vindo ao Limiar do Mundo.",
             "",
-            "Sou o Porteiro. Registro os que entram.",
             "Perguntas breves. O tempo aqui é... peculiar.",
         ], pausa=3)
         time.sleep(0.5)
@@ -8849,15 +8917,19 @@ class DungeonGame:
             combate(self.jogador, chefe_final)
             if self.jogador.esta_vivo():
                 print("\n🌟 Você derrotou o Olho de Vecna!"), time.sleep(3)
-                print("🏆 A maldição se dissipa..."), time.sleep(3)
-                print("🎉 Parabéns! Você venceu as Masmorras Liminares!"), time.sleep(3)
+                print("🏆 A maldição se dissipa pelo Mundo..."), time.sleep(3)
+                print("\tMas você percebe que isso é temporário."), time.sleep(2)
+                print("\tAgora entende como nunca antes, que o Mundo é um grande relógio."), time.sleep(2)
+                print("\tE que nele não há luz, e nem escuridão permanente."), time.sleep(2)
+                print("\tPelo menos até que ele se colapse.\n\n"), time.sleep(3)
+                print("🎉 Parabéns! Você venceu o Limiar!"), time.sleep(3)
             else:
                 print("\n💀 O Olho de Vecna consome sua alma..."), time.sleep(3)
             exit()
 
         # Escada normal — DESCIDA para AndarLabirinto
         elif (x, y) in self.mapa.escadas:
-            if self.andar >= 43:
+            if self.andar >= 14:
                 print("🔒 Os degraus desmoronaram. Não há como descer mais.")
                 time.sleep(2)
                 return
@@ -9121,6 +9193,8 @@ class DungeonGame:
                     time.sleep(2)
 
                 elif estrutura == 'altar de sangue':
+                    print(bloody_altar)
+                    time.sleep(2)
                     print("🩸 Você se aproxima. O altar pulsa mais forte.")
                     time.sleep(1.5)
                     if random.random() < 0.5:
@@ -9134,6 +9208,8 @@ class DungeonGame:
                     time.sleep(2)
 
                 elif estrutura == 'portal do vazio':
+                    print(void_portal)
+                    time.sleep(2)
                     print("🌌 Você estende a mão. O portal te puxa com força súbita...")
                     time.sleep(1.5)
                     if self.em_andar_profundo and self.andar in self.andares:
