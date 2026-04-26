@@ -147,8 +147,8 @@ Magias disponíveis via menu dinâmico por subclasse e grimórios equipados.
 |---|---|
 | 1–2 | Ratos, Goblins, Esqueletos, Vermes, Carnicais |
 | 3–4 | Orcs, Arqueiros das Trevas |
-| 5–7 | Gárgulas, Campeões da Morte, Sacerdotes†, Arautos |
-| 8+ | Cavaleiros, Dracolichis†, Serpentes Abissais†, Espectros |
+| 5–7 | Gárgulas, Campeões da Morte, Sacerdote †, Arautos |
+| 8+ | Cavaleiros, Dracolich †, Serpentes Abissal †, Espectros |
 | Andar 7–10+ | **Modo Extremo** ativado progressivamente |
 | Andar 14+ | **Olho de Vecna** pode surgir |
 
