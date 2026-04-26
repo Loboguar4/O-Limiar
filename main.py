@@ -588,7 +588,6 @@ DESCRICOES_ITENS = {
 }
 
 
-
 def peso_item(nome_item):
     """Retorna o peso de um item dado seu nome (busca por substring)."""
     # Flechas avulsas (qualquer quantidade) — 0.05kg/unidade
