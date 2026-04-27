@@ -6041,6 +6041,7 @@ class DungeonGame:
         n("", 0.5)
         n("A voz, quando vem, ressoa mais dentro do peito que pelos ouvidos:", 2)
         n("", 0.3)
+        input("\n  [ pressione ENTER ]")
         limpar_tela()
         print(charon)
         time.sleep(1.5)
