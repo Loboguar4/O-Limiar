@@ -148,7 +148,7 @@ Magias disponíveis via menu dinâmico por subclasse e grimórios equipados.
 | 1–2 | Ratos, Goblins, Esqueletos, Vermes, Carnicais |
 | 3–4 | Orcs, Arqueiros das Trevas |
 | 5–7 | Gárgulas, Campeões da Morte, Sacerdote †, Arautos |
-| 8+ | Cavaleiros, Dracolich †, Serpentes Abissal †, Espectros |
+| 8+ | Cavaleiros, Dracolich †, Serpente Abissal †, Espectros |
 | Andar 7–10+ | **Modo Extremo** ativado progressivamente |
 | Andar 14+ | **Olho de Vecna** pode surgir |
 
@@ -234,8 +234,8 @@ Saves em JSON em `~/.o_limiar/saves/`. Preserva personagem, posição, topologia
 |---|---|---|
 | 1 | Rato Carniceiro, Goblin Furtivo, Esqueleto Guardião, Verme das Entranhas, Carniçal | 1+ (persiste) |
 | 2 | Orc Berserker, Arqueiro das Trevas | 3+ |
-| 3 | Sacerdote Devorador†, Arauto do Vazio, Gárgula de Pedra, Campeão da Morte | 5+ |
-| 4 | Cavaleiro Sem Nome, Serpente Abissal†, Dracolich†, Espectro das Profundezas | 8+ |
+| 3 | Sacerdote Devorador †, Arauto do Vazio, Gárgula de Pedra, Campeão da Morte | 5+ |
+| 4 | Cavaleiro Sem Nome, Serpente Abissal †, Dracolich †, Espectro das Profundezas | 8+ |
 | Chefe | **Olho de Vecna** | Andar 21+ |
 
 † Único por run.
