@@ -3317,8 +3317,8 @@ class RatoCarniceiro(InimigoEspecial):
             nome="Rato Carniceiro",
             hp=4 + dificuldade,
             ac=10 + dificuldade // 4,
-            ataque_bonus=2 + dificuldade,
-            dano_lados=4,
+            ataque_bonus=2 + dificuldade // 3,
+            dano_lados=4 + dificuldade // 3,
             pos=pos, tipo='comum')
 
     def atacar(self, alvo):
@@ -3352,8 +3352,8 @@ class GoblinFurtivo(InimigoEspecial):
             nome="Goblin Furtivo",
             hp=7 + dificuldade,
             ac=11 + dificuldade // 4,
-            ataque_bonus=3 + dificuldade,
-            dano_lados=5,
+            ataque_bonus=3 + dificuldade // 4,
+            dano_lados=5 + dificuldade // 4,
             pos=pos, tipo='comum')
         self._fugiu = False
         self._itens_roubados = []   # itens roubados durante o combate
@@ -3396,8 +3396,8 @@ class EsqueletoGuardiao(InimigoEspecial):
             nome="Esqueleto Guardião",
             hp=10 + dificuldade,
             ac=14 + dificuldade // 3,
-            ataque_bonus=4 + dificuldade,
-            dano_lados=5,
+            ataque_bonus=4 + dificuldade // 4,
+            dano_lados=5 + dificuldade // 4,
             pos=pos, tipo='morto-vivo')
         self._remontou = False
 
@@ -3441,8 +3441,8 @@ class OrcBerserker(InimigoEspecial):
             nome="Orc Berserker",
             hp=12 + dificuldade,
             ac=13 + dificuldade // 4,
-            ataque_bonus=5 + dificuldade,
-            dano_lados=8,
+            ataque_bonus=5 + dificuldade // 3,
+            dano_lados=8 + dificuldade // 3,
             pos=pos, tipo='guerreiro')
         self._furia_ativa = False
 
@@ -3486,8 +3486,8 @@ class ArqueiroDasTrevas(InimigoEspecial):
             nome="Arqueiro das Trevas",
             hp=9 + dificuldade,
             ac=12 + dificuldade,
-            ataque_bonus=6 + dificuldade,
-            dano_lados=6,
+            ataque_bonus=6 + dificuldade // 4,
+            dano_lados=6 + dificuldade // 3,
             pos=pos, tipo='morto-vivo')
         self.arma_loot = f'Arco da Ruína +{1 + dificuldade // 4}'
 
@@ -3522,7 +3522,7 @@ class VermedaEntranhas(InimigoEspecial):
             hp=8 + dificuldade * 2,
             ac=11 + dificuldade // 3,
             ataque_bonus=4 + dificuldade // 2,
-            dano_lados=5,
+            dano_lados=5 + dificuldade // 3,
             pos=pos, tipo='venenoso')
 
     def atacar(self, alvo):
@@ -3554,8 +3554,8 @@ class CarnicaldaProfundeza(InimigoEspecial):
             nome="Carniçal Profano",
             hp=11 + dificuldade,
             ac=13 + dificuldade // 3,
-            ataque_bonus=5 + dificuldade,
-            dano_lados=7,
+            ataque_bonus=5 + dificuldade // 4,
+            dano_lados=7 + dificuldade // 3,
             pos=pos, tipo='venenoso_duplo')
         self.arma_loot = f'Adaga Envenenada +{1 + dificuldade // 4}'
 
@@ -3594,8 +3594,8 @@ class SacerdoteDevedor(InimigoEspecial):
             nome="Sacerdote Devorador",
             hp=20 + dificuldade,
             ac=15 + dificuldade // 4,
-            ataque_bonus=7 + dificuldade,
-            dano_lados=9,
+            ataque_bonus=7 + dificuldade // 3,
+            dano_lados=9 + dificuldade // 3,
             pos=pos, tipo='elite_magico', magia=True)
         self._dificuldade = dificuldade
 
@@ -3644,10 +3644,10 @@ class ArautodoVazio(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Arauto do Vazio",
-            hp=24 + dificuldade,
+            hp=24 + dificuldade * 2,
             ac=16 + dificuldade // 4,
             ataque_bonus=8 + dificuldade,
-            dano_lados=8,
+            dano_lados=8 + dificuldade // 4,
             pos=pos, tipo='elite_espectral')
 
     def atacar(self, alvo):
@@ -3684,8 +3684,8 @@ class GargulaDePedra(InimigoEspecial):
             nome="Gárgula de Pedra",
             hp=28 + dificuldade,
             ac=18 + dificuldade // 3,
-            ataque_bonus=6 + dificuldade,
-            dano_lados=9,
+            ataque_bonus=6 + dificuldade // 4,
+            dano_lados=9 + dificuldade // 3,
             pos=pos, tipo='elite_pétrea')
         self.resistencia_magica = 0.25   # verificado em usar_magia
 
@@ -3722,8 +3722,8 @@ class CampeaoDaMorte(InimigoEspecial):
             nome="Campeão da Morte",
             hp=30 + dificuldade,
             ac=17 + dificuldade // 4,
-            ataque_bonus=9 + dificuldade,
-            dano_lados=12,
+            ataque_bonus=9 + dificuldade // 4,
+            dano_lados=12 + dificuldade // 4,
             pos=pos, tipo="elite", magia=True)
 
     def atacar(self, alvo):
@@ -3769,8 +3769,8 @@ class CavaleiroSemNome(InimigoEspecial):
             nome="Cavaleiro Sem Nome",
             hp=38 + dificuldade,
             ac=20 + dificuldade // 4,
-            ataque_bonus=12 + dificuldade,
-            dano_lados=14,
+            ataque_bonus=12 + dificuldade // 4,
+            dano_lados=14 + dificuldade // 4,
             pos=pos, tipo='extremo_guerreiro')
         self.furia_ativa = False
         self._dificuldade = dificuldade
@@ -3809,8 +3809,8 @@ class SerpenteAbissal(InimigoEspecial):
             nome="Serpente Abissal",
             hp=30 + dificuldade,
             ac=17 + dificuldade // 4,
-            ataque_bonus=10 + dificuldade,
-            dano_lados=12,
+            ataque_bonus=10 + dificuldade // 4,
+            dano_lados=12 + dificuldade // 3,
             pos=pos, tipo='extremo_venenoso')
         self._dificuldade = dificuldade
 
@@ -3850,8 +3850,8 @@ class Dracolich(InimigoEspecial):
             nome="Dracolich",
             hp=40 + dificuldade,
             ac=19 + dificuldade // 3,
-            ataque_bonus=13 + dificuldade,
-            dano_lados=14,
+            ataque_bonus=13 + dificuldade // 3,
+            dano_lados=14 + dificuldade // 3,
             pos=pos, tipo='lendário', magia=True)
         self.resistencia_magica = 0.30
         self._dificuldade = dificuldade
@@ -3897,8 +3897,8 @@ class EspectrodasProfundezas(InimigoEspecial):
             nome="Espectro das Profundezas",
             hp=32 + dificuldade,
             ac=17 + dificuldade // 4,
-            ataque_bonus=11 + dificuldade,
-            dano_lados=10,
+            ataque_bonus=11 + dificuldade // 4,
+            dano_lados=10 + dificuldade // 4,
             pos=pos, tipo='extremo_espectral')
         self._resistencia_fisica = True   # flag verificada em Inimigo.atacar
 
@@ -7078,7 +7078,7 @@ class DungeonGame:
             extras = ['Grimório do Colapso', 'Tomo de Sabedoria Antiga', 'explosivo arremessável', 'Poção de Sangue']
 
         elif sc == 'Ladrão':
-            itens_base = ['Botas do Silêncio', 'Adaga Simples +1', 'chave', 'Diário Perdido']
+            itens_base = ['Botas do Silêncio', 'Adaga Simples +1', 'chave']
             porteiro_curto([
                 "Ladrão. Furtividade, sobrevivência e oportunismo.",
                 "Armadilhas raramente vos surpreendem.",
