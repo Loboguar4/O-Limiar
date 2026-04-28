@@ -484,8 +484,8 @@ PESOS_ITENS = {
     # ── LATEGAME — Equipamentos do Caçador ───────────────────────────
     'Botas do Caçador de Monstros': 1.5,
     'Elmo do Caçador de Monstros':  2.5,
-    'Botas Encantadas':             0.8,
     # ── NOVOS — Itens Mágicos ─────────────────────────────────────────
+    'Botas Encantadas':             0.8,
     'Cajado do Fogo Descendente':   1.6,
     'Códice dos Segredos Elementais': 1.8,
     'Chapéu Cósmico':               0.5,
