@@ -75,7 +75,7 @@ Sem dependências externas além da biblioteca padrão do Python.
 
 ## Sobre o Jogo
 
-**O Limiar** é um dungeon crawler RPG rodando inteiramente no terminal, escrito em Python. Inspirado em Rogue (1980), une geração procedural de labirintos, combate tático por turnos e atmosfera Dark Fantasy / Cosmic Horror numa aventura solitária e punitiva.
+**O Limiar** é um dungeon crawler RPG rodando inteiramente no terminal, escrito em Python. Inspirado em Rogue (1980), une geração procedural de labirintos e combate tático por turnos. Solitária e punitivo.
 
 O jogador acorda diante de um portão de pedra negra. Um ser sem nome — o Porteiro do Limiar — aguardava. As masmorras abaixo não são reais da forma que o mundo entende realidade: são uma armadilha viva tecida em torno do Olho de Vecna, um artefato que se tornou autoconsciente e consome almas.
 
