@@ -3317,8 +3317,8 @@ class RatoCarniceiro(InimigoEspecial):
             nome="Rato Carniceiro",
             hp=4 + dificuldade,
             ac=10 + dificuldade // 4,
-            ataque_bonus=2 + dificuldade // 3,
-            dano_lados=4 + dificuldade // 3,
+            ataque_bonus=2 + dificuldade // 4,
+            dano_lados=4 + dificuldade // 4,
             pos=pos, tipo='comum')
 
     def atacar(self, alvo):
@@ -3440,7 +3440,7 @@ class OrcBerserker(InimigoEspecial):
         super().__init__(
             nome="Orc Berserker",
             hp=12 + dificuldade,
-            ac=13 + dificuldade // 4,
+            ac=13 + dificuldade // 3,
             ataque_bonus=5 + dificuldade // 3,
             dano_lados=8 + dificuldade // 3,
             pos=pos, tipo='guerreiro')
@@ -3485,9 +3485,9 @@ class ArqueiroDasTrevas(InimigoEspecial):
         super().__init__(
             nome="Arqueiro das Trevas",
             hp=9 + dificuldade,
-            ac=12 + dificuldade,
-            ataque_bonus=6 + dificuldade // 4,
-            dano_lados=6 + dificuldade // 3,
+            ac=12 + dificuldade // 4,
+            ataque_bonus=6 + dificuldade // 3,
+            dano_lados=6 + dificuldade // 4,
             pos=pos, tipo='morto-vivo')
         self.arma_loot = f'Arco da Ruína +{1 + dificuldade // 4}'
 
