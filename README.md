@@ -1,4 +1,4 @@
-# O LIMIAR ~~ v2.3.0
+# O LIMIAR ~~ v2.3.1
 ### *Dungeon Crawl RPG de Terminal*
 
 <pre>
@@ -243,6 +243,12 @@ Saves em JSON em `~/.o_limiar/saves/`. Preserva personagem, posição, topologia
 ---
 
 ## Notas de Atualização
+
+### v2.3.1 — Escadarias e Elmo da Fúria
+
+**Escadarias ao Carregar Jogo:** Bug corrigido. Escadarias de subida e de descida são garantidos agora ao cerregar jogo.
+
+**Elmo da Fúria:** Persistência de durabilidade corrigida. Swaps não permitem mais resetar status do Elmo.
 
 ### v2.3.0 — Chefes, Modo Extremo e Refinamentos (atual)
 

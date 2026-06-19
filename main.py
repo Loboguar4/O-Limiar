@@ -1,5 +1,5 @@
 """
-# O LIMIAR — ver. 2.3.0
+# O LIMIAR — ver. 2.3.1
 # Anteriormente: Masmorras Liminares
 
     "Atmosférico. Punitivo. Ancestral. No Limiar do Mundo."
@@ -9,6 +9,18 @@
 # Licensed under the GNU GPL v3.0 or later
 # Para apoiar: pixgg.com/bandeirinha
 
+
+
+# ─────────────────────────────────────────────────────────────────────
+# NOTAS DE ATUALIZAÇÃO v2.3.1 — ESCADARIAS E ELMO DA FÚRIA
+# ─────────────────────────────────────────────────────────────────────
+#
+# ESCADARIAS AO CARREGAR JOGO:
+#   Bug corrigido. Escadarias de subida e de descida são garantidos agora ao cerregar jogo.
+#
+# ELMO DA FÚRIA:
+#   Persistência de durabilidade corrigida. Swaps não permitem mais resetar status do Elmo.
+#
 # ─────────────────────────────────────────────────────────────────────
 # NOTAS DE ATUALIZAÇÃO v2.3.0 — CHEFES, MODO EXTREMO E REFINAMENTOS
 # ─────────────────────────────────────────────────────────────────────
@@ -776,12 +788,11 @@ class Personagem:
             import re as _re
             ef = self.efeitos_ativos['elmo_furia']
             ef['ataques'] -= 1
-            # Atualizar [dur:N] no nome em equipados
+            # Atualizar [dur:N] no nome em equipados (incluindo dur:0 ao expirar)
             for i, eq in enumerate(self.equipados):
                 if 'Elmo da Fúria' in eq or 'Elmo Espinhoso' in eq:
                     base = _re.sub(r'\s*\[dur:\d+\]', '', eq)
-                    if ef['ataques'] > 0:
-                        self.equipados[i] = f'{base} [dur:{ef["ataques"]}]'
+                    self.equipados[i] = f'{base} [dur:{max(0, ef["ataques"])}]'
                     break
             if ef['ataques'] == 1:
                 print("🪖 Os espinhos do Elmo estão cedendo... (último ataque!)")
@@ -2876,30 +2887,37 @@ class Personagem:
     def atualizar_atributos_equipamento(self):
         # ── Elmo da Fúria: se saiu da build, cancelar efeito imediatamente ──
         if isinstance(self.efeitos_ativos.get('elmo_furia'), dict):
+            import re as _re
             elmo_na_build = next(
                 (eq for eq in self.equipados
                  if 'Elmo da Fúria' in eq or 'Elmo Espinhoso' in eq),
                 None
             )
             if not elmo_na_build:
-                import re as _re
                 ef = self.efeitos_ativos['elmo_furia']
                 dur_restante = ef.get('ataques', 1)
-                # Gravar durabilidade no item que voltou para a bolsa
-                for i, inv_item in enumerate(self.inventario):
-                    if ('Elmo da Fúria' in inv_item or 'Elmo Espinhoso' in inv_item) and '(quebrado)' not in inv_item:
-                        base = _re.sub(r'\s*\[dur:\d+\]', '', inv_item)
-                        self.inventario[i] = f'{base} [dur:{dur_restante}]'
-                        break
                 self.bonus_temporario = 0
                 del self.efeitos_ativos['elmo_furia']
-                print("🪖 Elmo da Fúria desequipado — durabilidade preservada no item.")
+                if dur_restante > 0:
+                    # Durabilidade restante — preservar no nome do item na bolsa
+                    for i, inv_item in enumerate(self.inventario):
+                        if ('Elmo da Fúria' in inv_item or 'Elmo Espinhoso' in inv_item) \
+                                and '(quebrado)' not in inv_item:
+                            base = _re.sub(r'\s*\[dur:\d+\]', '', inv_item)
+                            self.inventario[i] = f'{base} [dur:{dur_restante}]'
+                            break
+                    print("🪖 Elmo da Fúria desequipado — durabilidade preservada no item.")
+                else:
+                    # Durabilidade = 0 — item destruído ao desequipar
+                    for i, inv_item in enumerate(self.inventario):
+                        if ('Elmo da Fúria' in inv_item or 'Elmo Espinhoso' in inv_item) \
+                                and '(quebrado)' not in inv_item:
+                            del self.inventario[i]
+                            break
+                    print("🪖 Os espinhos do Elmo se partiram ao ser removido. Destruído.")
             else:
-                # Sincronizar dict com o [dur:N] que está no nome em equipados
-                import re as _re
-                m = _re.search(r'\[dur:(\d+)\]', elmo_na_build)
-                if m:
-                    self.efeitos_ativos['elmo_furia']['ataques'] = int(m.group(1))
+                # Elmo ainda na build — nada a fazer (dict é fonte de verdade)
+                pass
         self.ac = self.base_ac
         self.hp_max = self.base_hp_max
         self.ataque_bonus = self.base_ataque_bonus
@@ -3439,7 +3457,7 @@ class OrcBerserker(InimigoEspecial):
     def __init__(self, pos, dificuldade=10):
         super().__init__(
             nome="Orc Berserker",
-            hp=12 + dificuldade,
+            hp=12 + dificuldade * 2,
             ac=13 + dificuldade // 3,
             ataque_bonus=5 + dificuldade // 3,
             dano_lados=8 + dificuldade // 3,
@@ -3486,8 +3504,8 @@ class ArqueiroDasTrevas(InimigoEspecial):
             nome="Arqueiro das Trevas",
             hp=9 + dificuldade,
             ac=12 + dificuldade // 4,
-            ataque_bonus=6 + dificuldade // 3,
-            dano_lados=6 + dificuldade // 4,
+            ataque_bonus=6 + dificuldade // 2,
+            dano_lados=6 + dificuldade // 3,
             pos=pos, tipo='morto-vivo')
         self.arma_loot = f'Arco da Ruína +{1 + dificuldade // 4}'
 
@@ -3519,9 +3537,9 @@ class VermedaEntranhas(InimigoEspecial):
     def __init__(self, pos, dificuldade=10):
         super().__init__(
             nome="Verme das Entranhas",
-            hp=8 + dificuldade * 2,
+            hp=8 + dificuldade * 3,
             ac=11 + dificuldade // 3,
-            ataque_bonus=4 + dificuldade // 2,
+            ataque_bonus=4 + dificuldade // 3,
             dano_lados=5 + dificuldade // 3,
             pos=pos, tipo='venenoso')
 
@@ -3592,10 +3610,10 @@ class SacerdoteDevedor(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Sacerdote Devorador",
-            hp=20 + dificuldade,
+            hp=20 + dificuldade * 2,
             ac=15 + dificuldade // 4,
             ataque_bonus=7 + dificuldade // 3,
-            dano_lados=9 + dificuldade // 3,
+            dano_lados=9 + dificuldade // 2,
             pos=pos, tipo='elite_magico', magia=True)
         self._dificuldade = dificuldade
 
@@ -3644,7 +3662,7 @@ class ArautodoVazio(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Arauto do Vazio",
-            hp=24 + dificuldade * 2,
+            hp=24 + dificuldade * 3,
             ac=16 + dificuldade // 4,
             ataque_bonus=8 + dificuldade,
             dano_lados=8 + dificuldade // 4,
@@ -3682,10 +3700,10 @@ class GargulaDePedra(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Gárgula de Pedra",
-            hp=28 + dificuldade,
-            ac=18 + dificuldade // 3,
+            hp=28 + dificuldade * 2,
+            ac=18 + dificuldade // 2,
             ataque_bonus=6 + dificuldade // 4,
-            dano_lados=9 + dificuldade // 3,
+            dano_lados=9 + dificuldade // 2,
             pos=pos, tipo='elite_pétrea')
         self.resistencia_magica = 0.25   # verificado em usar_magia
 
@@ -3720,10 +3738,10 @@ class CampeaoDaMorte(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Campeão da Morte",
-            hp=30 + dificuldade,
-            ac=17 + dificuldade // 4,
-            ataque_bonus=9 + dificuldade // 4,
-            dano_lados=12 + dificuldade // 4,
+            hp=30 + dificuldade * 2,
+            ac=17 + dificuldade // 3,
+            ataque_bonus=9 + dificuldade // 3,
+            dano_lados=12 + dificuldade // 2,
             pos=pos, tipo="elite", magia=True)
 
     def atacar(self, alvo):
@@ -3767,10 +3785,10 @@ class CavaleiroSemNome(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Cavaleiro Sem Nome",
-            hp=38 + dificuldade,
-            ac=20 + dificuldade // 4,
-            ataque_bonus=12 + dificuldade // 4,
-            dano_lados=14 + dificuldade // 4,
+            hp=38 + dificuldade * 2,
+            ac=20 + dificuldade // 3,
+            ataque_bonus=12 + dificuldade // 2,
+            dano_lados=14 + dificuldade // 2,
             pos=pos, tipo='extremo_guerreiro')
         self.furia_ativa = False
         self._dificuldade = dificuldade
@@ -3807,7 +3825,7 @@ class SerpenteAbissal(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Serpente Abissal",
-            hp=30 + dificuldade,
+            hp=30 + dificuldade * 3,
             ac=17 + dificuldade // 4,
             ataque_bonus=10 + dificuldade // 4,
             dano_lados=12 + dificuldade // 3,
@@ -3848,7 +3866,7 @@ class Dracolich(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Dracolich",
-            hp=40 + dificuldade,
+            hp=40 + dificuldade * 3,
             ac=19 + dificuldade // 3,
             ataque_bonus=13 + dificuldade // 3,
             dano_lados=14 + dificuldade // 3,
@@ -3895,10 +3913,10 @@ class EspectrodasProfundezas(InimigoEspecial):
     def __init__(self, pos, dificuldade=18):
         super().__init__(
             nome="Espectro das Profundezas",
-            hp=32 + dificuldade,
-            ac=17 + dificuldade // 4,
-            ataque_bonus=11 + dificuldade // 4,
-            dano_lados=10 + dificuldade // 4,
+            hp=32 + dificuldade * 2,
+            ac=17 + dificuldade // 3,
+            ataque_bonus=11 + dificuldade // 2,
+            dano_lados=10 + dificuldade // 3,
             pos=pos, tipo='extremo_espectral')
         self._resistencia_fisica = True   # flag verificada em Inimigo.atacar
 
@@ -3938,7 +3956,7 @@ def _drenar_hp_max(alvo, quantidade):
 class OlhoDeVecna(InimigoEspecial):
     def __init__(self, pos, dificuldade=1):
         # Escala progressiva: cada ponto de dificuldade aumenta HP, AC e poder de ataque
-        hp_base       = 80  + dificuldade * 3
+        hp_base       = 80  + dificuldade * 4
         ac_base       = 16  + dificuldade // 3
         atk_base      = 8   + dificuldade // 3
         dano_base     = 10  + dificuldade // 3
@@ -4096,14 +4114,28 @@ def _usar_habilidade_especial(jogador, inimigo):
 
         # Elmo: decrementar durabilidade pela investida (conta como ataque)
         if isinstance(elmo_dict, dict):
+            import re as _re
             elmo_dict['ataques'] -= 1
             if elmo_dict['ataques'] == 1:
                 print("🪖 Os espinhos do Elmo estão cedendo... (último ataque!)")
             if elmo_dict['ataques'] <= 0:
                 jogador.bonus_temporario = 0
-                jogador.atualizar_atributos_equipamento()
+                # Atualizar nome para [dur:0] antes de remover
+                for i, eq in enumerate(jogador.equipados):
+                    if 'Elmo da Fúria' in eq or 'Elmo Espinhoso' in eq:
+                        base = _re.sub(r'\s*\[dur:\d+\]', '', eq)
+                        jogador.equipados[i] = f'{base} [dur:0]'
+                        break
+                # Remover de equipados
+                nome_elmo = next(
+                    (eq for eq in jogador.equipados
+                     if 'Elmo da Fúria' in eq or 'Elmo Espinhoso' in eq), None)
+                if nome_elmo:
+                    jogador.equipados.remove(nome_elmo)
+                # Deletar efeito ANTES de atualizar_atributos (evita sync indevido)
                 del jogador.efeitos_ativos['elmo_furia']
-                print("🪖 Os espinhos do Elmo se partiram na investida! Bônus esgotado.")
+                jogador.atualizar_atributos_equipamento()
+                print("🪖 Os espinhos do Elmo se partiram na investida! Elmo destruído.")
 
         jogador.cooldown_habilidade = 4
         time.sleep(1.5)
@@ -4784,11 +4816,13 @@ def _loot_inimigo(jogador, inimigo):
     elif inimigo.nome == 'Cavaleiro Sem Nome':
         print(f"\n⚔️  O CAVALEIRO SEM NOME desmorona. Sua arma ressoa com batalhas esquecidas...")
         time.sleep(1)
-        bonus_c = max(2, dif // 7)
+        bonus_c = max(2, dif // 6)
+        # Nova lógica: Rola o d12 e soma ao bônus
+        refino_arma = random.randint(1, 12) + bonus_c
         item_cav = random.choice([
-            f'Espada dos Mártires +{bonus_c}',
-            f'Espada Fantasma +{bonus_c}',
-            f'Lâmina Drenante +{bonus_c}',
+            f'Espada dos Mártires +{refino_arma}',
+            f'Espada Fantasma +{refino_arma}',
+            f'Lâmina Drenante +{refino_arma}',
         ])
         _oferecer(item_cav)
         time.sleep(1)
@@ -5848,33 +5882,16 @@ class DungeonGame:
             self.salas_visitadas.add(chave)
             if regiao_key != 'hub':
                 self.nivel += 1
-                # Modo extremo — ativa por dificuldade, andar ou presença de T4/T3
-                if not self.modo_extremo:
-                    self._verificar_ativar_modo_extremo()
 
     def _verificar_ativar_modo_extremo(self):
-        """
-        Ativa o modo extremo no late game.
-        Só funciona em andares profundos. Trigger principal: andar.
-        - Andar 7–8: chance de 40% por sala nova
-        - Andar 9:   chance de 70%
-        - Andar 10+: garantido
-        Também ativa se dificuldade >= 54 (exploração intensa num andar menor).
-        """
-        if not self.em_andar_profundo:
+        """Usado apenas no carregar_jogo para restaurar modo extremo em runs
+        que já deveriam tê-lo ativo (andar >= 7) mas não foram salvas com ele."""
+        if not self.em_andar_profundo or self.modo_extremo:
             return
-
-        dif = self._dificuldade_atual()
-        andar = self.andar
-
-        if andar >= 10 or dif >= 54:
+        if self.andar >= 10:
             self._ativar_modo_extremo()
-        elif andar == 9:
-            if random.random() < 0.70:
-                self._ativar_modo_extremo()
-        elif andar >= 7:
-            if random.random() < 0.40:
-                self._ativar_modo_extremo()
+        elif self.andar >= 7 and random.random() < 0.60:
+            self._ativar_modo_extremo()
 
     def _ativar_modo_extremo(self):
         """Ativa o modo extremo — narrativa completa ao estilo sessão zero."""
@@ -8451,8 +8468,6 @@ class DungeonGame:
                 self.sala_no_andar = nova_sala
                 self.salas_visitadas.add(chave_v)
                 self.nivel += 1
-                if not self.modo_extremo:
-                    self._verificar_ativar_modo_extremo()
                 self.mapa = novo_mapa
                 self.x, self.y = self._spawn_borda_oposta(dx, dy)
                 self.jogador.pos = (self.x, self.y)
@@ -8982,6 +8997,17 @@ class DungeonGame:
             self.andar += 1
             dif = self._dificuldade_atual()
 
+            # ── Modo extremo: ativa ao descer para andar >= 7 ────────────
+            if not self.modo_extremo and self.andar >= 7:
+                if self.andar >= 10:
+                    self._ativar_modo_extremo()
+                elif self.andar == 9:
+                    if random.random() < 0.70:
+                        self._ativar_modo_extremo()
+                else:   # andar 7 ou 8
+                    if random.random() < 0.45:
+                        self._ativar_modo_extremo()
+
             # Registrar coord como entrada do próximo andar
             if self.andar not in self.entradas_andares:
                 self.entradas_andares[self.andar] = set()
@@ -9090,11 +9116,37 @@ class DungeonGame:
                     if self.mapa:
                         self.x, self.y = self._spawn_junto_a(self.mapa, escada_orig)
                     else:
-                        self.x, self.y = self._spawn_em_mapa(self.mapa)
+                        # Sala não existe mais (regenerada) — usar entrada do andar
+                        self.sala_no_andar = andar_anterior.pos_entrada
+                        self.mapa = andar_anterior.sala(self.sala_no_andar)
+                        if self.mapa:
+                            self.x, self.y = self._spawn_em_mapa(self.mapa)
+                        else:
+                            # Último fallback: hub
+                            self.em_andar_profundo = False
+                            self.mapa = self._mapa_hub
+                            self.x, self.y = self._spawn_em_mapa(self.mapa)
                 else:
-                    self.em_andar_profundo = False
-                    self.mapa = self._mapa_hub
-                    self.x, self.y = self._spawn_em_mapa(self.mapa)
+                    # AndarLabirinto anterior não existe — recriar sob demanda
+                    dif = self._dificuldade_atual()
+                    entradas = self.entradas_andares.get(self.andar, {retorno['andar_sala']})
+                    novo_andar = AndarLabirinto(
+                        self.andar, dif, extrema=self.modo_extremo,
+                        entradas=entradas, unicos_spawados=_unicos_spawados
+                    )
+                    self.andares[self.andar] = novo_andar
+                    self.sala_no_andar = retorno['andar_sala']
+                    self.mapa = novo_andar.sala(self.sala_no_andar)
+                    if self.mapa is None:
+                        self.sala_no_andar = novo_andar.pos_entrada
+                        self.mapa = novo_andar.sala(self.sala_no_andar)
+                    if self.mapa:
+                        escada_orig = retorno['xy']
+                        self.x, self.y = self._spawn_junto_a(self.mapa, escada_orig)
+                    else:
+                        self.em_andar_profundo = False
+                        self.mapa = self._mapa_hub
+                        self.x, self.y = self._spawn_em_mapa(self.mapa)
             else:
                 # Fallback
                 self.em_andar_profundo = self.andar > 1
@@ -9707,24 +9759,78 @@ def carregar_jogo(fname):
     # ── Andares profundos: recriar o andar atual com entradas corretas ─
     game.andares = {}
     if game.em_andar_profundo and game.andar > 1:
-        # Recriar todos os andares até o atual com as entradas salvas
+        # Coletar todas as salas de retorno que cada andar precisa ter
+        salas_necessarias = {}
+        for (andar_dest, _), ctx in game.spawn_retorno.items():
+            if ctx.get('profundo') and ctx.get('andar_sala'):
+                andar_n = andar_dest - 1
+                if andar_n >= 2:
+                    salas_necessarias.setdefault(andar_n, set()).add(
+                        tuple(ctx['andar_sala'])
+                    )
+
+        # Recriar todos os andares até o atual
         for num_andar in range(2, game.andar + 1):
-            entradas = game.entradas_andares.get(num_andar, {game.sala_no_andar})
+            entradas_base = game.entradas_andares.get(num_andar, {game.sala_no_andar})
+            entradas_extra = salas_necessarias.get(num_andar, set())
+            entradas = entradas_base | entradas_extra
             game.andares[num_andar] = AndarLabirinto(
                 num_andar, dif, extrema=game.modo_extremo,
                 entradas=entradas, unicos_spawados=game.unicos_spawados
             )
-        # Posicionar no andar e sala corretos
+
+        # ── Reinjetar downstairs nas salas corretas ───────────────────
+        # spawn_retorno[(andar_dest, coord)] guarda onde estava o '>'
+        # no andar_dest-1 (andar superior) — precisamos restaurá-lo.
+        for (andar_dest, _), ctx in game.spawn_retorno.items():
+            if not ctx.get('profundo'):
+                continue   # descida a partir da superfície — não há AndarLabirinto acima
+            andar_superior = andar_dest - 1
+            if andar_superior < 2 or andar_superior not in game.andares:
+                continue
+            andar_obj_sup = game.andares[andar_superior]
+            sala_coord    = tuple(ctx['andar_sala'])
+            xy_stair      = tuple(ctx['xy'])
+            mapa_sala = andar_obj_sup.salas.get(sala_coord)
+            if mapa_sala is None:
+                # Sala ainda não existe — criar e registrar
+                mapa_sala = Mapa(dificuldade=dif, extrema=game.modo_extremo)
+                mapa_sala.escadas    = set()
+                mapa_sala.escada_subir  = None
+                mapa_sala.escada_final  = None
+                andar_obj_sup.salas[sala_coord] = mapa_sala
+            # Injetar o downstairs na posição original
+            sx, sy = xy_stair
+            if 0 <= sy < mapa_sala.altura and 0 <= sx < mapa_sala.largura:
+                mapa_sala.escadas.add(xy_stair)
+                mapa_sala.matriz[sy][sx] = '.'
+            else:
+                # Posição fora dos limites — encontrar célula livre
+                livres = [(x2, y2)
+                          for y2 in range(mapa_sala.altura)
+                          for x2 in range(mapa_sala.largura)
+                          if mapa_sala.matriz[y2][x2] == '.'
+                          and (x2, y2) != mapa_sala.escada_subir]
+                if livres:
+                    px, py = livres[len(livres) // 2]   # célula central
+                    mapa_sala.escadas.add((px, py))
+                    mapa_sala.matriz[py][px] = '.'
+
+        # Garantir que a sala atual existe; fallback para pos_entrada
         andar_obj = game.andares[game.andar]
         game.mapa = andar_obj.sala(game.sala_no_andar)
         if game.mapa is None:
-            # Fallback: sala de entrada
             game.sala_no_andar = andar_obj.pos_entrada
             game.mapa = andar_obj.sala(game.sala_no_andar)
-        # Spawn junto à escada de subida (referência conhecida)
+
+        # Spawn junto à escada de subida
         if game.mapa and game.mapa.escada_subir:
             game.x, game.y = game._spawn_junto_a(game.mapa, game.mapa.escada_subir)
+        elif game.mapa:
+            game.x, game.y = game._spawn_em_mapa(game.mapa)
         else:
+            game.em_andar_profundo = False
+            game.mapa = game._mapa_hub
             game.x, game.y = game._spawn_em_mapa(game.mapa)
     else:
         # Superfície — posicionar no hub ou na região correta
