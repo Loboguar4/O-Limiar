@@ -64,7 +64,7 @@ Nenhuma grande expedição conseguiu encontrar o Limiar do Mundo. Alguns médiun
 **Requisitos:** Python 3.10+, terminal com suporte a Unicode (recomendado: fonte SimSun-ExtG ≤ 20pt).
 
 ```bash
-git clone https://github.com/Loboguar4/O-Limiar.git
+git clone https://github.com/AhenDesk/O-Limiar.git
 cd O-Limiar
 python main.py
 ```
